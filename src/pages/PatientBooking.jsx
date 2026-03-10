@@ -219,8 +219,9 @@ export default function PatientBooking() {
                           onClick={() => { if (s.available) { setSelectedSlot(s); setDoctorId(s.doctorId); } }}
                           disabled={!s.available}
                           className={`block w-full py-1.5 rounded text-xs font-medium ${s.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
+                          title={s.available ? "Available" : "Booked"}
                         >
-                          {s.slotRoom || "-"}
+                          {s.available ? "✓" : "—"}
                         </button>
                       ) : <span className="text-slate-300">—</span>}
                     </div>

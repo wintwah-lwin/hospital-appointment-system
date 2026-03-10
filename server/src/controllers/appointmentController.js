@@ -19,11 +19,18 @@ function patientAllowedCategory(category) {
   return ["General", "Cardiology", "Neurology", "Orthopedics"].includes(category);
 }
 
+// Extract HH:mm in Singapore time (matches schedule slot format "09:00", "11:00", etc.)
 function hhmm(dateLike) {
   const d = new Date(dateLike);
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(d);
+  const hour = (parts.find(p => p.type === "hour")?.value || "00").padStart(2, "0");
+  const minute = (parts.find(p => p.type === "minute")?.value || "00").padStart(2, "0");
+  return `${hour}:${minute}`;
 }
 
 async function pickDoctorSlotRoom({ doctorId, startTime }) {
@@ -214,7 +221,7 @@ export const editAppointment = async (req, res) => {
   const roomPick = docId
     ? await pickDoctorSlotRoom({ doctorId: docId, startTime: start })
     : await findAvailableRoom({ startTime: start, endTime: end });
-  if (!roomPick.ok) return res.status(409).json({ message: "No available slot" });
+  if (!roomPick.ok) return res.status(409).json({ message: "No available slot: " + (roomPick.reason || "") });
 
   appt.category = cat;
   appt.doctorId = docId;
