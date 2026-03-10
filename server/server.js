@@ -82,6 +82,9 @@ async function ensureDoctorSchedules() {
 async function ensureSystemUsers() {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@intellicare.local").toLowerCase().trim();
   const adminPassword = process.env.ADMIN_PASSWORD || "Admin123!";
+  if (process.env.NODE_ENV === "production" && !process.env.ADMIN_PASSWORD) {
+    console.warn("SECURITY: ADMIN_PASSWORD not set in production. Set it in your hosting env vars.");
+  }
   const staffSeed = (process.env.STAFF_SEED || "").trim();
 
   const admin = await User.findOne({ email: adminEmail });

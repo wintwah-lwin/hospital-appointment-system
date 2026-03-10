@@ -11,10 +11,14 @@ function parseSlotTime(s) {
   return { h: h || 0, m: m || 0 };
 }
 
+// Use Singapore time (UTC+8) so slot times display correctly regardless of server timezone
+const TZ_OFFSET = "+08:00";
 function slotToDate(dateStr, slotTime) {
-  const [y, mo, day] = dateStr.split("-").map(Number);
   const { h, m } = parseSlotTime(slotTime);
-  return new Date(y, (mo || 1) - 1, day || 1, h, m, 0, 0);
+  const hh = String(h || 0).padStart(2, "0");
+  const mm = String(m || 0).padStart(2, "0");
+  const iso = `${dateStr}T${hh}:${mm}:00${TZ_OFFSET}`;
+  return new Date(iso);
 }
 
 function toSlots(sched, defaultRoom = "Room-01") {
@@ -66,13 +70,10 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
   }
 
   const results = [];
-  const [y, mo, day] = dateStr.split("-").map(Number);
-  const date = new Date(y, (mo || 1) - 1, day || 1);
-  const dayOfWeek = date.getDay();
+  const startOfDay = new Date(`${dateStr}T00:00:00${TZ_OFFSET}`);
+  const endOfDay = new Date(`${dateStr}T23:59:59.999${TZ_OFFSET}`);
+  const dayOfWeek = new Date(`${dateStr}T12:00:00${TZ_OFFSET}`).getUTCDay();
   const now = new Date();
-
-  const startOfDay = new Date(y, (mo || 1) - 1, day || 1, 0, 0, 0, 0);
-  const endOfDay = new Date(y, (mo || 1) - 1, day || 1, 23, 59, 59, 999);
   const appointments = await Appointment.find({
     status: { $in: BLOCKING_STATUSES },
     startTime: { $gte: startOfDay },

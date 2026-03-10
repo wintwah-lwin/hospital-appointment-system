@@ -48,8 +48,9 @@ cd /Users/louiswalker/Downloads/intellicare-resource-allocation-5
 # Initialize git
 git init
 
-# Add all files
+# Add all files (gitignore excludes .env – your secrets stay local)
 git add .
+git status   # Verify that .env and server/.env are NOT listed
 
 # Commit
 git commit -m "Initial commit - IntelliCare app"
@@ -62,7 +63,7 @@ git branch -M main
 git push -u origin main
 ```
 
-Your code is now on GitHub.
+Your code is now on GitHub. **Never commit `.env` or `server/.env`** – they contain passwords and secrets.
 
 ---
 
@@ -85,7 +86,9 @@ Your code is now on GitHub.
    | Key | Value |
    |-----|-------|
    | `MONGO_URI` | Your MongoDB Atlas connection string from Part 1 |
-   | `JWT_SECRET` | A long random string (e.g. run `openssl rand -hex 32` in terminal) |
+   | `JWT_SECRET` | Generate with: `openssl rand -hex 32` |
+   | `ADMIN_PASSWORD` | A strong password for the admin account (required in production) |
+   | `ADMIN_EMAIL` | Admin email (optional, default: admin@intellicare.local) |
    | `PORT` | `5001` |
 6. Click **Create Web Service**.
 7. Wait for the deploy to finish. The URL will look like:
@@ -124,6 +127,15 @@ If you later restrict CORS and see errors, add your Vercel URL to the allowed or
 
 ---
 
+## Security: Keep Passwords Out of Git
+
+- `.env` and `server/.env` are in `.gitignore` – **never remove them**.
+- Before pushing, run `git status` and confirm no `.env` files are staged.
+- On your server (Render, VPS, etc.), set `JWT_SECRET`, `ADMIN_PASSWORD`, and `MONGO_URI` as environment variables – never put real secrets in code or committed files.
+- Use `server/.env.example` as a template. Copy to `server/.env` locally and fill in real values. Never commit `server/.env`.
+
+---
+
 ## Summary
 
 | Service | Purpose | Free Tier |
@@ -150,6 +162,6 @@ If you see "Cannot reach API" or backend errors:
 
 - [ ] MongoDB Atlas cluster created
 - [ ] GitHub repo created and code pushed
-- [ ] Render web service deployed with `MONGO_URI` and `JWT_SECRET`
+- [ ] Render web service deployed with `MONGO_URI`, `JWT_SECRET`, and `ADMIN_PASSWORD`
 - [ ] Vercel project deployed with `VITE_API_BASE_URL` pointing to Render
 - [ ] CORS in backend allows the Vercel domain

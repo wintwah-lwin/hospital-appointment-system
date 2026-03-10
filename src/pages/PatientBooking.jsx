@@ -183,12 +183,12 @@ export default function PatientBooking() {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Appointment Booking</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Appointment Booking</h1>
           <p className="text-slate-600 text-sm">Logged in as {user?.displayName || user?.nric || user?.email}</p>
         </div>
-        <Link to="/patient/bookings" className="text-sm font-medium text-primary-600 hover:underline">My bookings →</Link>
+        <Link to="/patient/bookings" className="text-sm font-medium text-primary-600 hover:underline shrink-0">My bookings →</Link>
       </div>
 
       {/* Step 1: Timetable first - full width */}
@@ -199,8 +199,8 @@ export default function PatientBooking() {
           </select>
           <input type="date" min={minDate} max={maxDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
         </div>
-        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-          <div className="grid grid-cols-[minmax(120px,1fr)_repeat(5,minmax(80px,1fr))] text-sm">
+        <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
+          <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(64px,1fr))] text-sm min-w-[420px]">
             <div className="px-4 py-3 bg-slate-50 font-medium text-slate-600">Doctor</div>
             {FIXED.map(f => <div key={f.value} className="px-4 py-3 bg-slate-50 font-medium text-slate-600">{f.label}</div>)}
             {byDoctor.length === 0 ? (
@@ -247,13 +247,13 @@ export default function PatientBooking() {
               <span className="block text-xs font-medium text-slate-600 mb-1">Doctor</span>
               <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
                 <option value="">Select doctor</option>
-                {filteredDoctors.map(d => <option key={d._id} value={d._id}>{d.name} ({d.specialty})</option>)}
+                {filteredDoctors.map(d => <option key={d._id} value={d._id}>{d.name}{d.specialty ? ` (${d.specialty})` : ""}</option>)}
               </select>
             </label>
             <div className="min-w-[120px]">
               {selectedSlot ? (
                 <span className="inline-block px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium">
-                  {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })} with {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
+                  {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })} with {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
                 </span>
               ) : (
                 <span className="text-slate-500 text-sm">Select a slot above</span>
