@@ -8,11 +8,10 @@ export default function Login() {
   const nav = useNavigate();
 
   const [patientMode, setPatientMode] = useState(true);
-  const [patientRegister, setPatientRegister] = useState(false); // Register vs Sign in for patient
-  const [nric, setNric] = useState("");
-  const [dob, setDob] = useState("");
+  const [patientRegister, setPatientRegister] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [dob, setDob] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
@@ -22,10 +21,10 @@ export default function Login() {
     try {
       if (patientMode) {
         if (patientRegister) {
-          const user = await registerPatient({ nric, dob, password, displayName });
+          await registerPatient({ email, password, displayName, dob });
           nav("/patient", { replace: true });
         } else {
-          const user = await login({ nric, dob, password });
+          await login({ email, password });
           nav("/patient", { replace: true });
         }
       } else {
@@ -96,29 +95,21 @@ export default function Login() {
               </div>
             )}
 
-            {patientMode ? (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">NRIC / FIN</label>
-                  <input value={nric} onChange={(e) => setNric(e.target.value)} placeholder="S1234567D" required className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
-                </div>
-                {patientRegister && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Name (optional)</label>
-                      <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth (optional)</label>
-                      <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={patientMode ? "you@gmail.com" : "staff@hospital.sg"} required className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
+            </div>
+            {patientMode && patientRegister && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@hospital.sg" required className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date of birth</label>
+                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} required className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
+                <p className="text-xs text-slate-500 mt-1">Must be 16 or older to register.</p>
+              </div>
+            )}
+            {patientMode && patientRegister && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Name (optional)</label>
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" />
               </div>
             )}
 
@@ -135,7 +126,7 @@ export default function Login() {
           </form>
 
           <p className="mt-4 text-xs text-slate-500 text-center">
-            {patientMode ? "Patients use NRIC." : "Staff and admin use email."}
+            Password: min 8 chars, at least one letter and one number.
           </p>
         </div>
       </div>

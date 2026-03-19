@@ -35,10 +35,10 @@ router.get("/:id", requireAuth, getAppointmentById);
 router.patch("/:id", requireAuth, editAppointment);
 router.post("/:id/cancel", requireAuth, cancelAppointment);
 
-// Public: Kiosk lookup (NRIC or Appointment ID) - no auth
+// Public: Kiosk lookup (email or Appointment ID) - no auth
 router.post("/lookup", lookupAppointment);
 
-// Check-in: staff always; patient for own; OR public with nric in body (kiosk self-check-in)
+// Check-in: staff always; patient for own; OR public with email in body (kiosk self-check-in)
 router.post("/:id/check-in", attachAuth, checkIn);
 
 // Staff/Doctor: Queue & consultation

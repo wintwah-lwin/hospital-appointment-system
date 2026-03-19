@@ -11,7 +11,6 @@ function parseSlotTime(s) {
   return { h: h || 0, m: m || 0 };
 }
 
-// Use Singapore time (UTC+8) so slot times display correctly regardless of server timezone
 const TZ_OFFSET = "+08:00";
 function slotToDate(dateStr, slotTime) {
   const { h, m } = parseSlotTime(slotTime);
@@ -21,34 +20,25 @@ function slotToDate(dateStr, slotTime) {
   return new Date(iso);
 }
 
-function toSlots(sched, defaultRoom = "Room-01") {
-  if (sched?.slots && Array.isArray(sched.slots) && sched.slots.length > 0) {
-    return sched.slots.filter(s => s?.time && s?.room?.trim());
-  }
-  const legacy = sched?.sections || [sched?.slot1Time, sched?.slot2Time, sched?.slot3Time].filter(Boolean);
-  const rooms = ["Room-01", "Room-02", "Room-03", "Room-04", "Room-05"];
-  return legacy.filter(t => FIXED_TIMES.includes(t)).map((t, i) => ({ time: t, room: sched?.room || rooms[i % 5] || defaultRoom }));
+/** Get slots for a specific day from schedule (days array) */
+export function getSlotsForDay(sched, dayOfWeek) {
+  if (!sched?.days || !Array.isArray(sched.days)) return [];
+  const dayConfig = sched.days.find(d => d.dayOfWeek === dayOfWeek);
+  if (!dayConfig?.slots) return [];
+  return dayConfig.slots.filter(s => s?.time && s?.room?.trim());
 }
 
 export async function getDoctorSchedule(doctorId) {
-  let sched = await DoctorSchedule.findOne({ doctorId }).lean();
-  const defaultSlots = [
-    { time: "09:00", room: "Room-01" },
-    { time: "11:00", room: "Room-02" },
-    { time: "14:00", room: "Room-03" },
-    { time: "16:00", room: "Room-04" },
-    { time: "17:00", room: "Room-05" }
-  ];
-  if (!sched) return { slots: defaultSlots, workingDays: [1, 2, 3, 4, 5] };
-  const slots = toSlots(sched);
-  return { ...sched, slots: slots.length ? slots : defaultSlots, workingDays: sched.workingDays || [1, 2, 3, 4, 5] };
+  const sched = await DoctorSchedule.findOne({ doctorId }).lean();
+  if (!sched || !sched.days?.length) return { days: [] };
+  return { ...sched, days: sched.days };
 }
 
 export function isSlotInSchedule(schedule, date, startTime) {
   const d = new Date(startTime);
   const dayOfWeek = d.getDay();
-  const slots = toSlots(schedule);
-  if (!(schedule.workingDays || [1, 2, 3, 4, 5]).includes(dayOfWeek)) return false;
+  const slots = getSlotsForDay(schedule, dayOfWeek);
+  if (!slots.length) return false;
 
   const dateStr = d.toISOString().slice(0, 10);
   for (const s of slots) {
@@ -88,8 +78,8 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
 
   for (const doc of doctors) {
     const sched = await getDoctorSchedule(doc._id);
-    const slots = toSlots(sched);
-    if (!slots.length || !(sched.workingDays || [1, 2, 3, 4, 5]).includes(dayOfWeek)) continue;
+    const slots = getSlotsForDay(sched, dayOfWeek);
+    if (!slots.length) continue;
 
     for (const s of slots) {
       const start = slotToDate(dateStr, s.time);

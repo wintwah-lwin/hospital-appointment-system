@@ -86,7 +86,9 @@ export default function MyBookings() {
                 </span>
                 {a.status === "Booked" && (
                   <div className="flex gap-2">
-                    <button onClick={() => navigate(`/patient/bookings/${a._id}/edit`)} className="px-3 py-1 rounded border border-slate-200 text-xs hover:bg-slate-50">Reschedule</button>
+                    {((new Date(a.startTime).getTime() - Date.now()) / (1000 * 60 * 60) >= 24) && (
+                      <button onClick={() => navigate(`/patient/bookings/${a._id}/edit`)} className="px-3 py-1 rounded border border-slate-200 text-xs hover:bg-slate-50">Reschedule</button>
+                    )}
                     <button onClick={() => cancel(a._id)} className="px-3 py-1 rounded border border-slate-200 text-xs text-red-600 hover:bg-red-50">Cancel</button>
                   </div>
                 )}

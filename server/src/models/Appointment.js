@@ -18,7 +18,7 @@ const appointmentSchema = new mongoose.Schema(
   {
     patientUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     patientName: { type: String, required: true },
-    patientNric: { type: String, default: "" },
+    patientEmail: { type: String, default: "" },
 
     institutionId: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", default: null },
     institutionName: { type: String, default: "" },
@@ -64,7 +64,10 @@ const appointmentSchema = new mongoose.Schema(
     createdByRole: { type: String, enum: ["patient", "admin"], required: true },
     createdByUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
-    notes: { type: String, default: "" }
+    notes: { type: String, default: "" },
+
+    reminder12hSent: { type: Boolean, default: false },
+    reminder3hSent: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

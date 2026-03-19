@@ -46,6 +46,12 @@ export default function EditBooking() {
     return (doctors || []).filter(d => d.isActive !== false && (d.specialty === category || d.specialty === "General"));
   }, [doctors, category]);
 
+  const canReschedule = useMemo(() => {
+    if (!appt?.startTime) return true;
+    const hoursUntil = (new Date(appt.startTime).getTime() - Date.now()) / (1000 * 60 * 60);
+    return hoursUntil >= 24;
+  }, [appt?.startTime]);
+
   async function save(e) {
     e.preventDefault();
     setSaving(true);
@@ -69,62 +75,83 @@ export default function EditBooking() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">Edit booking</h1>
-        <Link to="/patient/bookings" className="rounded-xl border border-zinc-800 px-4 py-2 text-sm hover:bg-zinc-900">Back</Link>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Reschedule appointment</h1>
+          <p className="text-sm text-slate-500 mt-1">Change date, time, or doctor. Slot availability will be checked.</p>
+        </div>
+        <Link to="/patient/bookings" className="text-sm font-medium text-[#0d9488] hover:underline shrink-0">← Back to bookings</Link>
       </div>
 
-      <p className="mt-2 text-sm text-zinc-500">
-        Reschedule your appointment. Slot availability will be checked.
-      </p>
-
-      {err ? <div className="mt-4 text-sm text-red-400">{err}</div> : null}
+      {err && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{err}</div>}
 
       {!appt ? (
-        <div className="mt-6 text-sm text-zinc-500">Loading...</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Loading…</div>
+      ) : !canReschedule ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 max-w-xl">
+          <p className="text-amber-800 font-medium">Rescheduling is only allowed at least 24 hours before your appointment.</p>
+          <p className="text-amber-700 text-sm mt-2">Your appointment is on {new Date(appt.startTime).toLocaleString()}. Please contact the clinic if you need to change it.</p>
+          <Link to="/patient/bookings" className="inline-block mt-4 text-sm font-medium text-[#0d9488] hover:underline">← Back to bookings</Link>
+        </div>
       ) : (
-        <form onSubmit={save} className="mt-6 grid gap-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-5">
-          <label className="grid gap-2 text-sm">
-            <span className="text-zinc-400">Category</span>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+        <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5 max-w-xl">
+          <label className="block">
+            <span className="block text-sm font-medium text-slate-700 mb-1">Category</span>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent">
               {PATIENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
 
-          <label className="grid gap-2 text-sm">
-            <span className="text-zinc-400">Queue category</span>
-            <select value={queueCategory} onChange={(e) => setQueueCategory(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+          <label className="block">
+            <span className="block text-sm font-medium text-slate-700 mb-1">Queue category</span>
+            <select value={queueCategory} onChange={(e) => setQueueCategory(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent">
               <option value="New">New</option>
               <option value="Follow-up">Follow-up</option>
               <option value="Priority">Priority</option>
             </select>
           </label>
 
-          <label className="grid gap-2 text-sm">
-            <span className="text-zinc-400">Doctor</span>
-            <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+          <label className="block">
+            <span className="block text-sm font-medium text-slate-700 mb-1">Doctor</span>
+            <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent">
               <option value="">Select doctor</option>
               {filteredDoctors.map(d => (
-                <option key={d._id} value={d._id}>{d.name} ({d.specialty})</option>
+                <option key={d._id} value={d._id}>{d.name}{d.specialty ? ` (${d.specialty})` : ""}</option>
               ))}
             </select>
           </label>
 
-          <label className="grid gap-2 text-sm">
-            <span className="text-zinc-400">Start time</span>
-            <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2" />
-            <div className="text-xs text-zinc-500">Slot length is {SLOT_MINUTES} minutes.</div>
+          <label className="block">
+            <span className="block text-sm font-medium text-slate-700 mb-1">Date & time</span>
+            <input
+              type="datetime-local"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              min={(() => {
+                const n = new Date();
+                n.setMinutes(n.getMinutes() - n.getTimezoneOffset());
+                return n.toISOString().slice(0, 16);
+              })()}
+              required
+              className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent"
+            />
+            <p className="text-xs text-slate-500 mt-1">Slot length is {SLOT_MINUTES} minutes. Cannot select past times.</p>
           </label>
 
-          <label className="grid gap-2 text-sm">
-            <span className="text-zinc-400">Notes</span>
-            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2" />
+          <label className="block">
+            <span className="block text-sm font-medium text-slate-700 mb-1">Notes (optional)</span>
+            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent" placeholder="Any notes for the doctor..." />
           </label>
 
-          <button disabled={saving} className="rounded-xl bg-white/10 px-4 py-2 font-medium hover:bg-white/15 disabled:opacity-60">
-            {saving ? "Saving..." : "Save changes"}
-          </button>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-lg bg-[#0d9488] text-white font-medium hover:bg-[#0f766e] disabled:opacity-50 disabled:cursor-not-allowed transition">
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+            <Link to="/patient/bookings" className="px-6 py-2.5 rounded-lg border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition">
+              Cancel
+            </Link>
+          </div>
         </form>
       )}
     </div>

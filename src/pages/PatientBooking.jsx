@@ -3,7 +3,7 @@ import { apiGet, apiPost } from "../api/client.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { Link } from "react-router-dom";
 
-const SPECIALTIES = ["General", "Cardiology", "Neurology", "Orthopedics"];
+const SPECIALTIES = ["All doctors", "General", "Cardiology", "Neurology", "Orthopedics"];
 const NEEDS_REFERRAL = ["Cardiology", "Neurology", "Orthopedics"];
 
 export default function PatientBooking() {
@@ -12,7 +12,7 @@ export default function PatientBooking() {
   const [doctors, setDoctors] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [timetableSlots, setTimetableSlots] = useState([]);
-  const [category, setCategory] = useState("General");
+  const [category, setCategory] = useState("All doctors");
   const [doctorId, setDoctorId] = useState("");
   const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -22,6 +22,7 @@ export default function PatientBooking() {
   const [created, setCreated] = useState(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   async function loadData() {
     setError("");
@@ -46,12 +47,15 @@ export default function PatientBooking() {
     }
   }
 
+  const [timetableMeta, setTimetableMeta] = useState(null);
   async function loadTimetable() {
     try {
-      const data = await apiGet(`/api/schedule/timetable?date=${bookingDate}`);
+      const data = await apiGet(`/api/schedule/timetable?date=${bookingDate}&includePastSlots=false`);
       setTimetableSlots(data.slots || []);
+      setTimetableMeta({ dayName: data.dayName, date: data.date });
     } catch (e) {
       setTimetableSlots([]);
+      setTimetableMeta(null);
     }
   }
 
@@ -66,6 +70,7 @@ export default function PatientBooking() {
   }, [bookingDate, doctorId, category]);
 
   const filteredDoctors = useMemo(() => {
+    if (category === "All doctors") return doctors || [];
     return (doctors || []).filter(d => d.specialty === category || d.specialty === "General");
   }, [doctors, category]);
 
@@ -82,33 +87,40 @@ export default function PatientBooking() {
     setSelectedSlot(null);
   }, [doctorId, bookingDate]);
 
-  const referralRequired = NEEDS_REFERRAL.includes(category);
 
-  async function submit(e) {
+  const referralRequired = category !== "All doctors" && NEEDS_REFERRAL.includes(category);
+
+  function handleConfirmClick(e) {
     e.preventDefault();
-    if (submitting) return;
+    if (referralRequired && !hasReferral) {
+      setError("Referral required for specialist appointments");
+      return;
+    }
+    if (!selectedSlot) {
+      setError("Please select an available time slot from the timetable");
+      return;
+    }
+    setError("");
+    setShowConfirm(true);
+  }
+
+  async function submitConfirmed() {
+    if (submitting || !selectedSlot) return;
+    setSubmitting(true);
+    setShowConfirm(false);
     setError("");
     setCreated(null);
-    setSubmitting(true);
     try {
-      if (referralRequired && !hasReferral) {
-        setError("Referral required for specialist appointments");
-        return;
-      }
-      if (!selectedSlot) {
-        setError("Please select an available time slot from the timetable");
-        return;
-      }
-
+      const doc = doctors.find(d => String(d._id) === String(selectedSlot.doctorId));
+      const cat = category === "All doctors" ? (doc?.specialty || "General") : category;
       const payload = {
-        category,
+        category: cat,
         doctorId: selectedSlot.doctorId,
         startTime: selectedSlot.startTime,
         queueCategory: "New",
-        hasReferral: referralRequired ? hasReferral : undefined,
+        hasReferral: (cat && NEEDS_REFERRAL.includes(cat)) ? hasReferral : undefined,
         notes
       };
-
       const res = await apiPost("/api/appointments", payload);
       setCreated(res);
       setNotes("");
@@ -136,8 +148,64 @@ export default function PatientBooking() {
     return Object.entries(out).map(([id, d]) => ({ doctorId: id, ...d }));
   }, [filteredTimetableSlots]);
 
+  const doc = selectedSlot ? doctors.find(d => String(d._id) === String(selectedSlot.doctorId)) : null;
+  const confirmSummary = selectedSlot && doc ? {
+    doctor: doc.name,
+    date: new Date(selectedSlot.startTime).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
+    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
+  } : null;
+
   return (
     <div className="space-y-8 relative">
+      {/* Pre-booking confirmation modal */}
+      {showConfirm && confirmSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-in">
+            <div className="bg-gradient-to-br from-teal-500 to-teal-700 px-6 py-8 text-white text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              </div>
+              <h2 className="text-xl font-bold">Are you sure?</h2>
+              <p className="text-teal-100 text-sm mt-1">Please confirm your appointment details</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="rounded-xl bg-slate-50 p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Doctor</span>
+                  <span className="font-medium text-slate-900">{confirmSummary.doctor}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Date</span>
+                  <span className="font-medium text-slate-900">{confirmSummary.date}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Time</span>
+                  <span className="font-medium text-slate-900">{confirmSummary.time}</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={submitConfirmed}
+                  disabled={submitting}
+                  className="flex-1 py-3 rounded-xl bg-teal-600 text-white font-semibold hover:bg-teal-700 disabled:opacity-50 transition shadow-lg shadow-teal-500/30"
+                >
+                  {submitting ? "Booking…" : "Yes, book it"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(false)}
+                  disabled={submitting}
+                  className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success overlay - animated confirmation */}
       {created && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
@@ -186,18 +254,23 @@ export default function PatientBooking() {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Appointment Booking</h1>
-          <p className="text-slate-600 text-sm">Logged in as {user?.displayName || user?.nric || user?.email}</p>
+          <p className="text-slate-600 text-sm">Logged in as {user?.displayName || user?.email}</p>
         </div>
         <Link to="/patient/bookings" className="text-sm font-medium text-primary-600 hover:underline shrink-0">My bookings →</Link>
       </div>
 
-      {/* Step 1: Timetable first - full width */}
+      {/* Step 1: Select specialty first, then show timetable */}
       <section>
+        {timetableMeta && (
+          <p className="text-sm text-slate-600 mb-2">
+            Timetable for {timetableMeta.dayName}, {bookingDate ? new Date(bookingDate + "T12:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
             {SPECIALTIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input type="date" min={minDate} max={maxDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <input type="date" min={minDate} max={maxDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" title="Cannot book past dates" />
         </div>
         <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
           <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(64px,1fr))] text-sm min-w-[420px]">
@@ -236,7 +309,7 @@ export default function PatientBooking() {
 
       {/* Step 2: Form */}
       <section>
-        <form onSubmit={submit} className="space-y-4 max-w-2xl">
+        <form onSubmit={handleConfirmClick} className="space-y-4 max-w-2xl">
           {referralRequired && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={hasReferral} onChange={(e) => setHasReferral(e.target.checked)} className="rounded border-slate-300 text-primary-600" />

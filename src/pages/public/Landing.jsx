@@ -78,7 +78,7 @@ export default function Landing() {
             <div className="min-w-0 flex flex-col">
               <div className="w-12 h-12 rounded-xl bg-[#ccfbf1] text-[#0d9488] flex items-center justify-center font-bold text-lg mb-4">2</div>
               <h3 className="font-semibold text-[#0f172a] text-lg">Check in at clinic</h3>
-              <p className="mt-2 text-[#64748b] text-sm leading-relaxed min-h-[2.75rem]">Use the kiosk or counter with your NRIC to get your token number.</p>
+              <p className="mt-2 text-[#64748b] text-sm leading-relaxed min-h-[2.75rem]">Use the kiosk or counter with your email to get your token number.</p>
             </div>
             <div className="min-w-0 flex flex-col">
               <div className="w-12 h-12 rounded-xl bg-[#ccfbf1] text-[#0d9488] flex items-center justify-center font-bold text-lg mb-4">3</div>
@@ -125,7 +125,7 @@ export default function Landing() {
               From booking to queue management, IntelliCare connects patients, staff, and doctors in a single system. No paper slips, no confusion.
             </p>
             <ul className="mt-6 space-y-3 text-[#475569]">
-              <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#0d9488]" /> Patients book with NRIC</li>
+              <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#0d9488]" /> Patients book with email</li>
               <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#0d9488]" /> Staff and admin use email</li>
               <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#0d9488]" /> No credit card required</li>
             </ul>

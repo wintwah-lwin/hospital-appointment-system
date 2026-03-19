@@ -1,5 +1,6 @@
 import app from "./src/app.js";
 import { connectDB } from "./src/config/db.js";
+import { runReminderEmails } from "./src/jobs/reminderEmails.js";
 import User from "./src/models/User.js";
 import Institution from "./src/models/Institution.js";
 import Bed from "./src/models/Bed.js";
@@ -12,11 +13,12 @@ dotenv.config();
 
 await connectDB();
 
-// Fix: ensure email index is SPARSE so multiple patients (email: null) can register
+// Ensure email index unique (all users use email)
 try {
   await User.collection.dropIndex("email_1").catch(() => {});
-  await User.collection.createIndex({ email: 1 }, { unique: true, sparse: true });
-  console.log("Email index: sparse unique (allows multiple null)");
+  await User.collection.dropIndex("nric_1").catch(() => {});
+  await User.collection.createIndex({ email: 1 }, { unique: true });
+  console.log("Email index: unique");
 } catch (e) {
   console.warn("Index fix:", e.message);
 }
@@ -55,27 +57,26 @@ async function ensureRooms() {
 }
 
 async function ensureDoctorSchedules() {
-  const defaultSlots = [
-    { time: "09:00", room: "Room-01" },
-    { time: "11:00", room: "Room-02" },
-    { time: "14:00", room: "Room-03" },
-    { time: "16:00", room: "Room-04" },
-    { time: "17:00", room: "Room-05" }
-  ];
   const doctors = await Doctor.find({});
   for (const d of doctors) {
     const exists = await DoctorSchedule.findOne({ doctorId: d._id });
-    if (!exists) {
-      await DoctorSchedule.create({ doctorId: d._id, slots: defaultSlots });
-      console.log("Created schedule for doctor:", d.name);
-    } else if (!exists.slots || !Array.isArray(exists.slots) || exists.slots.length === 0) {
-      const legacy = exists.sections || [exists.slot1Time, exists.slot2Time, exists.slot3Time].filter(Boolean);
-      const times = [...new Set(legacy)].filter(s => ["09:00", "11:00", "14:00", "16:00", "17:00"].includes(s));
-      const rooms = ["Room-01", "Room-02", "Room-03", "Room-04", "Room-05"];
-      const migrated = times.length ? times.map((t, i) => ({ time: t, room: d.room || rooms[i % 5] })) : defaultSlots;
-      await DoctorSchedule.updateOne({ doctorId: d._id }, { $set: { slots: migrated } });
-      console.log("Migrated schedule for doctor:", d.name);
+    if (!exists) continue;
+    if (exists.days && Array.isArray(exists.days) && exists.days.length > 0) {
+      await DoctorSchedule.updateOne({ doctorId: d._id }, { $unset: { slots: "", workingDays: "" } });
+      continue;
     }
+    const defaultSlots = [
+      { time: "09:00", room: "Room-01" },
+      { time: "11:00", room: "Room-02" },
+      { time: "14:00", room: "Room-03" },
+      { time: "16:00", room: "Room-04" },
+      { time: "17:00", room: "Room-05" }
+    ];
+    const oldSlots = Array.isArray(exists.slots) && exists.slots.length ? exists.slots.filter(s => s?.time && s?.room) : defaultSlots;
+    const workingDays = Array.isArray(exists.workingDays) && exists.workingDays.length ? exists.workingDays : [1, 2, 3, 4, 5];
+    const days = workingDays.map(dow => ({ dayOfWeek: dow, slots: [...oldSlots] }));
+    await DoctorSchedule.updateOne({ doctorId: d._id }, { $set: { days }, $unset: { slots: "", workingDays: "" } });
+    console.log("Migrated schedule for doctor:", d.name);
   }
 }
 
@@ -120,3 +121,8 @@ const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
+
+// Appointment reminder emails (12h and 3h before) – runs every 15 minutes
+const REMINDER_INTERVAL_MS = 15 * 60 * 1000;
+setInterval(runReminderEmails, REMINDER_INTERVAL_MS);
+runReminderEmails().catch((e) => console.warn("Initial reminder run:", e?.message));

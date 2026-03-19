@@ -1,6 +1,13 @@
 import LoginEvent from "../models/LoginEvent.js";
 import SecurityAlert from "../models/SecurityAlert.js";
 
+export const deleteLoginEvent = async (req, res) => {
+  const { id } = req.params;
+  const deleted = await LoginEvent.findByIdAndDelete(id);
+  if (!deleted) return res.status(404).json({ message: "Login event not found" });
+  res.json({ ok: true });
+};
+
 export const listLoginEvents = async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
   const skip = parseInt(req.query.skip, 10) || 0;

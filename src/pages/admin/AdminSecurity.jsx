@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiGet } from "../../api/client.js";
+import { apiGet, apiDelete } from "../../api/client.js";
 
 export default function AdminSecurity() {
   const [summary, setSummary] = useState(null);
@@ -38,6 +38,16 @@ export default function AdminSecurity() {
     if (filter.success !== "" && String(e.success) !== filter.success) return false;
     return true;
   });
+
+  async function deleteEvent(id) {
+    if (!window.confirm("Delete this login event?")) return;
+    try {
+      await apiDelete(`/api/security/login-events/${id}`);
+      setEvents((prev) => prev.filter((e) => e._id !== id));
+    } catch (e) {
+      setError(String(e?.message || e));
+    }
+  }
 
   if (loading && !summary) {
     return (
@@ -140,12 +150,13 @@ export default function AdminSecurity() {
                   <th className="text-left font-medium px-4 py-3">Status</th>
                   <th className="text-left font-medium px-4 py-3">IP</th>
                   <th className="text-left font-medium px-4 py-3">Risk</th>
+                  <th className="text-left font-medium px-4 py-3 w-20">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredEvents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-zinc-500 text-center">
+                    <td colSpan={7} className="px-4 py-8 text-zinc-500 text-center">
                       No login events yet.
                     </td>
                   </tr>
@@ -181,6 +192,16 @@ export default function AdminSecurity() {
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => deleteEvent(e._id)}
+                          className="px-2 py-1 rounded-lg border border-zinc-200 text-zinc-600 text-xs hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"
+                          title="Delete"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))

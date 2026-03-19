@@ -4,7 +4,7 @@ import Bed from "../models/Bed.js";
 import User from "../models/User.js";
 import Institution from "../models/Institution.js";
 import { SLOT_MINUTES, addMinutes, validateBookingWindow, isDoctorAvailable, findAvailableRoom } from "../utils/availability.js";
-import { getDoctorSchedule, isSlotInSchedule } from "../utils/schedule.js";
+import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay } from "../utils/schedule.js";
 import { notifyUser } from "../utils/notify.js";
 
 const SPECIALIST_CATEGORIES = ["Cardiology", "Neurology", "Orthopedics"];
@@ -35,8 +35,10 @@ function hhmm(dateLike) {
 
 async function pickDoctorSlotRoom({ doctorId, startTime }) {
   const sched = await getDoctorSchedule(doctorId);
+  const d = new Date(startTime);
+  const dayOfWeek = d.getDay();
+  const slots = getSlotsForDay(sched, dayOfWeek);
   const time = hhmm(startTime);
-  const slots = Array.isArray(sched?.slots) ? sched.slots : [];
   const slot = slots.find(s => String(s.time) === time);
   if (!slot?.room) return { ok: false, reason: "Doctor slot room is not configured" };
 
@@ -49,6 +51,9 @@ async function pickDoctorSlotRoom({ doctorId, startTime }) {
 export const createAppointment = async (req, res) => {
   const { institutionId, category, doctorId, startTime, notes, queueCategory } = req.body || {};
   const user = req.user;
+
+  const patientUser = await User.findById(user.id).select("email displayName isBanned").lean();
+  if (patientUser?.isBanned) return res.status(403).json({ message: "You cannot make bookings because your account has been banned. Please contact support." });
 
   const cat = normalizeCategory(category);
   if (!patientAllowedCategory(cat)) return res.status(403).json({ message: "Invalid specialty" });
@@ -95,8 +100,8 @@ export const createAppointment = async (req, res) => {
 
   const appt = await Appointment.create({
     patientUserId: user.id,
-    patientName: (user.displayName && String(user.displayName).trim()) ? String(user.displayName).trim() : "Patient",
-    patientNric: user.nric || "",
+    patientName: (user.displayName && String(user.displayName).trim()) ? String(user.displayName).trim() : (patientUser?.displayName || "Patient"),
+    patientEmail: (patientUser?.email || user.email || "").toLowerCase().trim(),
     institutionId: institutionId || null,
     institutionName,
     category: cat,
@@ -133,7 +138,10 @@ export const createAppointment = async (req, res) => {
 };
 
 export const listMyAppointments = async (req, res) => {
-  const appts = await Appointment.find({ patientUserId: req.user.id })
+  const appts = await Appointment.find({
+    patientUserId: req.user.id,
+    status: { $ne: "Cancelled" }
+  })
     .sort({ startTime: -1 })
     .lean();
   res.json(appts);
@@ -196,6 +204,12 @@ export const editAppointment = async (req, res) => {
   if (!isAdmin && !isOwner) return res.status(403).json({ message: "Forbidden" });
   if (appt.status !== "Booked") return res.status(400).json({ message: "Only Booked appointments can be rescheduled" });
 
+  // Reschedule only allowed 24 hours before appointment (admins can bypass)
+  if (!isAdmin) {
+    const hoursUntil = (new Date(appt.startTime).getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursUntil < 24) return res.status(400).json({ message: "Rescheduling is only allowed at least 24 hours before your appointment time." });
+  }
+
   const cat = category ? normalizeCategory(category) : appt.category;
   const start = startTime ? new Date(startTime) : appt.startTime;
   if (Number.isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
@@ -254,12 +268,12 @@ export const getAppointmentById = async (req, res) => {
 // --- Check-in & Queue (Singapore style) ---
 
 export const lookupAppointment = async (req, res) => {
-  const { nric, appointmentId } = req.body || {};
-  if (!nric && !appointmentId) return res.status(400).json({ message: "NRIC or Appointment ID required" });
+  const { email, appointmentId } = req.body || {};
+  if (!email && !appointmentId) return res.status(400).json({ message: "Email or Appointment ID required" });
 
   const query = { status: "Booked" };
   if (appointmentId) query._id = appointmentId;
-  if (nric) query.patientNric = String(nric).trim().toUpperCase();
+  if (email) query.patientEmail = String(email).trim().toLowerCase();
 
   const appt = await Appointment.findOne(query)
     .populate("roomId", "bedId")
@@ -271,19 +285,18 @@ export const lookupAppointment = async (req, res) => {
 
 export const checkIn = async (req, res) => {
   const { id } = req.params;
-  const { nric } = req.body || {};
+  const { email } = req.body || {};
   const appt = await Appointment.findById(id);
   if (!appt) return res.status(404).json({ message: "Not found" });
   if (appt.status !== "Booked") return res.status(400).json({ message: "Appointment is not in Booked status" });
 
-  // Auth: staff/admin can check-in anyone; patient can check-in own; kiosk: nric in body must match
   if (req.user) {
     const isStaff = req.user.role === "staff" || req.user.role === "admin";
     const isOwner = String(appt.patientUserId) === String(req.user.id);
     if (!isStaff && !isOwner) return res.status(403).json({ message: "Forbidden" });
   } else {
-    if (!nric || String(nric).trim().toUpperCase() !== String(appt.patientNric || "").toUpperCase()) {
-      return res.status(401).json({ message: "NRIC required for kiosk check-in" });
+    if (!email || String(email).trim().toLowerCase() !== String(appt.patientEmail || "").toLowerCase()) {
+      return res.status(401).json({ message: "Email required for kiosk check-in" });
     }
   }
 

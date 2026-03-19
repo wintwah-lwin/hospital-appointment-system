@@ -2,14 +2,14 @@ import React, { useState } from "react";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
-async function lookup(nric, appointmentId) {
+async function lookup(email, appointmentId) {
   let res;
   try {
     res = await fetch(`${BASE}/api/appointments/lookup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(nric ? { nric } : { appointmentId })
-  });
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(email ? { email } : { appointmentId })
+    });
   } catch (err) {
     throw new Error(err?.message === "Failed to fetch" ? "Cannot reach server. Is the backend running?" : String(err?.message || err));
   }
@@ -18,14 +18,14 @@ async function lookup(nric, appointmentId) {
   try { return JSON.parse(text); } catch { throw new Error("Invalid response"); }
 }
 
-async function checkIn(id, nric) {
+async function checkIn(id, email) {
   let res;
   try {
     res = await fetch(`${BASE}/api/appointments/${id}/check-in`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nric })
-  });
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
   } catch (err) {
     throw new Error(err?.message === "Failed to fetch" ? "Cannot reach server. Is the backend running?" : String(err?.message || err));
   }
@@ -39,7 +39,7 @@ async function checkIn(id, nric) {
 }
 
 export default function CheckInKiosk() {
-  const [nric, setNric] = useState("");
+  const [email, setEmail] = useState("");
   const [appointmentId, setAppointmentId] = useState("");
   const [step, setStep] = useState("scan");
   const [appointment, setAppointment] = useState(null);
@@ -51,12 +51,12 @@ export default function CheckInKiosk() {
     e.preventDefault();
     setError("");
     setInstruction("");
-    if (!nric && !appointmentId) {
-      setError("Enter NRIC or scan your appointment barcode/QR");
+    if (!email && !appointmentId) {
+      setError("Enter email or scan your appointment barcode/QR");
       return;
     }
     try {
-      const appt = await lookup(nric || undefined, appointmentId || undefined);
+      const appt = await lookup(email || undefined, appointmentId || undefined);
       setAppointment(appt);
       setStep("confirm");
     } catch (err) {
@@ -68,7 +68,7 @@ export default function CheckInKiosk() {
     setError("");
     setInstruction("");
     try {
-      const res = await checkIn(appointment._id, appointment.patientNric || nric);
+      const res = await checkIn(appointment._id, appointment.patientEmail || email);
       setResult(res);
       setStep("done");
     } catch (err) {
@@ -85,7 +85,7 @@ export default function CheckInKiosk() {
     setResult(null);
     setError("");
     setInstruction("");
-    setNric("");
+    setEmail("");
     setAppointmentId("");
   }
 
@@ -93,16 +93,17 @@ export default function CheckInKiosk() {
     <div className="min-h-screen bg-zinc-950 text-white p-8 flex flex-col items-center justify-center">
       <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
         <h1 className="text-2xl font-semibold text-center mb-6">Self Check-In Kiosk</h1>
-        <p className="text-sm text-zinc-400 text-center mb-6">Scan NRIC / barcode / QR or enter details</p>
+        <p className="text-sm text-zinc-400 text-center mb-6">Scan barcode / QR or enter email</p>
 
         {step === "scan" && (
           <form onSubmit={handleLookup} className="space-y-4">
-            <label className="block text-sm text-zinc-400">NRIC / FIN</label>
+            <label className="block text-sm text-zinc-400">Email</label>
             <input
-              value={nric}
-              onChange={(e) => setNric(e.target.value)}
-              placeholder="S1234567D"
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-lg uppercase"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@gmail.com"
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-lg"
             />
             <div className="text-center text-zinc-500 text-sm">— or —</div>
             <label className="block text-sm text-zinc-400">Appointment ID</label>

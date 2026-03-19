@@ -11,9 +11,11 @@ import StaffDashboard from "./pages/StaffDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminBookingLoad from "./pages/AdminBookingLoad.jsx";
 import AdminSecurity from "./pages/admin/AdminSecurity.jsx";
+import AdminDoctors from "./pages/admin/AdminDoctors.jsx";
+import AdminPatients from "./pages/admin/AdminPatients.jsx";
+import AdminPatientDetail from "./pages/admin/AdminPatientDetail.jsx";
 import CheckInKiosk from "./pages/CheckInKiosk.jsx";
 import HospitalStatus from "./pages/public/HospitalStatus.jsx";
-import Departments from "./pages/public/Departments.jsx";
 import AppShell from "./components/AppShell.jsx";
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import RequireAuth from "./auth/RequireAuth.jsx";
@@ -39,10 +41,6 @@ export default function App() {
       <Route path="/status" element={<RequireAuth roles={["patient", "admin", "staff"]}><AppShell /></RequireAuth>}>
         <Route index element={<HospitalStatus />} />
       </Route>
-      <Route path="/departments" element={<RequireAuth roles={["patient", "admin", "staff"]}><AppShell /></RequireAuth>}>
-        <Route index element={<Departments />} />
-      </Route>
-
       <Route path="/kiosk" element={<CheckInKiosk />} />
 
       <Route path="/staff" element={<RequireAuth roles={["staff"]}><AppShell /></RequireAuth>}>
@@ -54,6 +52,9 @@ export default function App() {
           <Route index element={<AdminDashboard />} />
           <Route path="booking-load" element={<AdminBookingLoad />} />
           <Route path="security" element={<AdminSecurity />} />
+          <Route path="doctors" element={<AdminDoctors />} />
+          <Route path="patients" element={<AdminPatients />} />
+          <Route path="patients/:id" element={<AdminPatientDetail />} />
         </Route>
       </Route>
 

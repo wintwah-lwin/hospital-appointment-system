@@ -19,7 +19,7 @@ export default function StaffDashboard() {
   const [queue, setQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState("");
-  const [lookupNric, setLookupNric] = useState("");
+  const [lookupEmail, setLookupEmail] = useState("");
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupErr, setLookupErr] = useState("");
 
@@ -52,15 +52,15 @@ export default function StaffDashboard() {
     e.preventDefault();
     setLookupErr("");
     setLookupResult(null);
-    if (!lookupNric) {
-      setLookupErr("Enter NRIC");
+    if (!lookupEmail) {
+      setLookupErr("Enter email");
       return;
     }
     try {
       const res = await fetch((import.meta.env.VITE_API_BASE_URL || "http://localhost:5001") + "/api/appointments/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nric: lookupNric.trim() })
+        body: JSON.stringify({ email: lookupEmail.trim().toLowerCase() })
       });
       const text = await res.text();
       const data = text ? (() => { try { return JSON.parse(text); } catch { return {}; } })() : {};
@@ -156,12 +156,12 @@ export default function StaffDashboard() {
       {tab === "counter" && (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
           <h2 className="text-lg font-semibold mb-4">Counter Check-In</h2>
-          <p className="text-sm text-zinc-500 mb-4">Search patient by NRIC or Appointment ID, then check in.</p>
+          <p className="text-sm text-zinc-500 mb-4">Search patient by email or Appointment ID, then check in.</p>
           <form onSubmit={handleLookup} className="flex gap-3 mb-4">
             <input
-              value={lookupNric}
-              onChange={(e) => setLookupNric(e.target.value)}
-              placeholder="NRIC or Appointment ID"
+              value={lookupEmail}
+              onChange={(e) => setLookupEmail(e.target.value)}
+              placeholder="Email or Appointment ID"
               className="flex-1 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2"
             />
             <button type="submit" className="rounded-xl bg-zinc-700 px-4 py-2">Search</button>
