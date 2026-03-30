@@ -5,15 +5,16 @@ import { apiGet } from "../api/client.js";
 const SLOT_ORDER = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 const SLOT_LABEL = { "09:00": "9am", "11:00": "11am", "14:00": "2pm", "16:00": "4pm", "17:00": "5pm" };
 const CAPACITY_PER_DOCTOR_SLOT = 3;
+const TZ = "Asia/Singapore";
 
 function toDatePart(dateLike) {
   const d = new Date(dateLike);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  return d.toLocaleDateString("en-CA", { timeZone: TZ }); // "YYYY-MM-DD"
 }
-
 function toHHMM(dateLike) {
   const d = new Date(dateLike);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const s = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+  return s; // "09:00" format
 }
 
 function tokenDisplay(queueNumber) {
@@ -27,6 +28,7 @@ export default function AdminBookingLoad() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [timetable, setTimetable] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [doctorFilter, setDoctorFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
   const [error, setError] = useState("");
@@ -34,12 +36,14 @@ export default function AdminBookingLoad() {
   async function load() {
     setError("");
     try {
-      const [tt, appts] = await Promise.all([
-        apiGet(`/api/schedule/timetable?date=${date}`),
-        apiGet("/api/appointments")
+      const [tt, appts, docs] = await Promise.all([
+        apiGet(`/api/schedule/timetable?date=${date}&includePastSlots=true`),
+        apiGet("/api/appointments"),
+        apiGet("/api/doctors")
       ]);
       setTimetable(tt?.slots || []);
       setAppointments(appts || []);
+      setDoctors(docs || []);
     } catch (e) {
       setError(String(e?.message || e));
     }
@@ -49,37 +53,47 @@ export default function AdminBookingLoad() {
 
   const doctorOptions = useMemo(() => {
     const map = new Map();
+    for (const d of doctors) {
+      map.set(String(d._id), d.name || "Unknown");
+    }
     for (const s of timetable) {
-      map.set(String(s.doctorId), s.doctorName || "Unknown");
+      map.set(String(s.doctorId), s.doctorName || map.get(String(s.doctorId)) || "Unknown");
     }
     for (const a of appointments) {
-      if (a.doctorId) map.set(String(a.doctorId), a.doctorNameSnapshot || "Unknown");
+      if (a.doctorId) map.set(String(a.doctorId), a.doctorNameSnapshot || map.get(String(a.doctorId)) || "Unknown");
     }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [timetable, appointments]);
+  }, [timetable, appointments, doctors]);
 
   const rows = useMemo(() => {
     const bySlotDoctor = new Map();
+    for (const s of timetable) {
+      const key = `${String(s.doctorId)}|${s.slotLabel}`;
+      bySlotDoctor.set(key, {
+        doctorId: s.doctorId,
+        doctorName: s.doctorName || "Unknown",
+        time: s.slotLabel,
+        totalSlots: s.capacity ?? CAPACITY_PER_DOCTOR_SLOT,
+        booked: 0,
+        checkedIn: 0,
+        inside: 0
+      });
+    }
     for (const d of doctorOptions) {
       for (const t of SLOT_ORDER) {
         const key = `${d.id}|${t}`;
-        bySlotDoctor.set(key, {
-          doctorId: d.id,
-          doctorName: d.name,
-          time: t,
-          totalSlots: CAPACITY_PER_DOCTOR_SLOT,
-          booked: 0,
-          checkedIn: 0,
-          inside: 0
-        });
+        if (!bySlotDoctor.has(key)) {
+          bySlotDoctor.set(key, {
+            doctorId: d.id,
+            doctorName: d.name,
+            time: t,
+            totalSlots: 0,
+            booked: 0,
+            checkedIn: 0,
+            inside: 0
+          });
+        }
       }
-    }
-
-    for (const s of timetable) {
-      const key = `${String(s.doctorId)}|${s.slotLabel}`;
-      const row = bySlotDoctor.get(key);
-      if (!row) continue;
-      if (!s.available) row.booked += 1;
     }
 
     for (const a of appointments) {
@@ -89,6 +103,9 @@ export default function AdminBookingLoad() {
       const key = `${String(a.doctorId)}|${hhmm}`;
       const row = bySlotDoctor.get(key);
       if (!row) continue;
+      if (["Booked", "Checked-In", "Waiting", "In Consultation"].includes(a.status)) {
+        row.booked = (row.booked ?? 0) + 1;
+      }
       if (a.status === "Checked-In" || a.status === "Waiting") row.checkedIn += 1;
       if (a.status === "In Consultation") row.inside += 1;
     }

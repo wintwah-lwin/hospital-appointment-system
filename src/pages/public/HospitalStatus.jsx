@@ -35,7 +35,7 @@ export default function HospitalStatus() {
       {error ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="text-sm text-red-700">Error: {error}</div>
-          <div className="mt-2 text-xs text-zinc-600">Tip: make sure backend is running and VITE_API_BASE_URL matches.</div>
+          <div className="mt-2 text-xs text-zinc-600">Tip: start the backend from the server folder (port 5001 by default).</div>
         </div>
       ) : !snapshot ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

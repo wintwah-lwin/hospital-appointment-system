@@ -17,7 +17,6 @@ import AdminPatientDetail from "./pages/admin/AdminPatientDetail.jsx";
 import CheckInKiosk from "./pages/CheckInKiosk.jsx";
 import HospitalStatus from "./pages/public/HospitalStatus.jsx";
 import AppShell from "./components/AppShell.jsx";
-import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import RequireAuth from "./auth/RequireAuth.jsx";
 import { useAuth } from "./auth/AuthContext.jsx";
 
@@ -48,14 +47,12 @@ export default function App() {
       </Route>
 
       <Route path="/admin" element={<RequireAuth roles={["admin"]}><AppShell /></RequireAuth>}>
-        <Route element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="booking-load" element={<AdminBookingLoad />} />
-          <Route path="security" element={<AdminSecurity />} />
-          <Route path="doctors" element={<AdminDoctors />} />
-          <Route path="patients" element={<AdminPatients />} />
-          <Route path="patients/:id" element={<AdminPatientDetail />} />
-        </Route>
+        <Route index element={<AdminDashboard />} />
+        <Route path="booking-load" element={<AdminBookingLoad />} />
+        <Route path="security" element={<AdminSecurity />} />
+        <Route path="doctors" element={<AdminDoctors />} />
+        <Route path="patients" element={<AdminPatients />} />
+        <Route path="patients/:id" element={<AdminPatientDetail />} />
       </Route>
 
       <Route path="*" element={
