@@ -2,16 +2,35 @@ import app from "./src/app.js";
 import { connectDB } from "./src/config/db.js";
 import { runReminderEmails } from "./src/jobs/reminderEmails.js";
 import User from "./src/models/User.js";
-import Institution from "./src/models/Institution.js";
 import Bed from "./src/models/Bed.js";
 import Doctor from "./src/models/Doctor.js";
 import DoctorSchedule from "./src/models/DoctorSchedule.js";
 import { hashPassword } from "./src/utils/password.js";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envInRepo = path.join(__dirname, "..", "env", "server", ".env");
+const envNextToServer = path.join(__dirname, ".env");
+dotenv.config({ path: fs.existsSync(envInRepo) ? envInRepo : envNextToServer });
 
 await connectDB();
+
+// If DB was on roomId for a while, copy back to bedId
+try {
+  const n = await Bed.collection.countDocuments({ roomId: { $exists: true }, bedId: { $exists: false } });
+  if (n > 0) {
+    await Bed.collection.updateMany(
+      { roomId: { $exists: true }, bedId: { $exists: false } },
+      [{ $set: { bedId: "$roomId" } }, { $unset: "roomId" }]
+    );
+    console.log("Migrated rooms: roomId -> bedId");
+  }
+} catch (e) {
+  console.warn("Room field migration:", e.message);
+}
 
 // Ensure email index unique (all users use email)
 try {
@@ -21,17 +40,6 @@ try {
   console.log("Email index: unique");
 } catch (e) {
   console.warn("Index fix:", e.message);
-}
-
-async function ensureInstitutions() {
-  const names = ["Singapore General Hospital", "National University Hospital", "Tan Tock Seng Hospital"];
-  for (const name of names) {
-    const exists = await Institution.findOne({ name });
-    if (!exists) {
-      await Institution.create({ name, code: name.split(" ").map(w => w[0]).join("").slice(0, 4), isActive: true });
-      console.log("Created institution:", name);
-    }
-  }
 }
 
 async function ensureRooms() {
@@ -111,7 +119,6 @@ async function ensureSystemUsers() {
   }
 }
 
-await ensureInstitutions();
 await ensureRooms();
 await ensureDoctorSchedules();
 await ensureSystemUsers();

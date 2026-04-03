@@ -114,7 +114,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="flex h-[100dvh] min-h-0 overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -123,9 +123,9 @@ export default function AppShell() {
           aria-hidden
         />
       )}
-      {/* Sidebar nav - left; drawer on mobile, fixed on desktop */}
+      {/* Sidebar: full viewport height; nav scrolls, logout stays at bottom. Main content scrolls separately. */}
       <aside
-        className={`fixed lg:relative inset-y-0 left-0 z-50 w-56 shrink-0 border-r border-slate-200 bg-white flex flex-col transform transition-transform duration-200 ease-out lg:translate-x-0 ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-56 shrink-0 border-r border-slate-200 bg-white flex flex-col h-[100dvh] lg:h-full min-h-0 transform transition-transform duration-200 ease-out lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -138,7 +138,7 @@ export default function AppShell() {
             </div>
           </div>
         </Link>
-        <nav className="flex-1 p-3 space-y-1" onClick={() => window.innerWidth < 1024 && setSidebarOpen(false)}>
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1" onClick={() => window.innerWidth < 1024 && setSidebarOpen(false)}>
           <NavLink
             to={user?.role === "admin" ? "/admin" : user?.role === "staff" ? "/staff" : "/patient"}
             end
@@ -161,6 +161,26 @@ export default function AppShell() {
                 }
               >
                 Booking Load
+              </NavLink>
+              <NavLink
+                to="/admin/appointments"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                Appointments
+              </NavLink>
+              <NavLink
+                to="/admin/room-bookings"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                Room bookings
               </NavLink>
               <NavLink
                 to="/admin/security"
@@ -194,21 +214,12 @@ export default function AppShell() {
               </NavLink>
             </>
           )}
-          <NavLink
-            to="/status"
-            className={({ isActive }) =>
-              `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
-                isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-              }`
-            }
-          >
-            Status
-          </NavLink>
         </nav>
-        <div className="p-3 border-t border-slate-200">
+        <div className="shrink-0 p-3 border-t border-slate-200 bg-white">
           <button
+            type="button"
             onClick={logout}
-            className="w-full text-left px-4 py-2.5 rounded-xl text-sm text-zinc-600 hover:bg-zinc-100"
+            className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 border border-transparent hover:border-zinc-200/80"
           >
             Logout
           </button>
@@ -216,7 +227,7 @@ export default function AppShell() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-slate-50 min-w-0">
+      <main className="flex-1 min-h-0 overflow-y-auto bg-slate-50 min-w-0">
         <div className="p-4 sm:p-6 lg:p-8">
           {/* Top bar: hamburger (mobile) + logo (mobile) + notification bell (top-right) */}
           <div className="flex items-center justify-between gap-3 mb-4">

@@ -9,7 +9,6 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Logo className="h-11 w-11" />
           <nav className="flex items-center gap-8">
-            <Link to="/status" className="text-sm text-[#64748b] hover:text-[#0d9488] transition">Status</Link>
             <Link to="/login" className="text-sm font-medium text-[#0d9488] hover:text-[#0f766e] transition">Sign in</Link>
           </nav>
         </div>
@@ -158,7 +157,6 @@ export default function Landing() {
             <span className="text-[#64748b] text-sm">Resource Allocation</span>
           </div>
           <div className="flex gap-6 text-sm text-[#64748b]">
-            <Link to="/status" className="hover:text-[#0d9488]">Status</Link>
             <Link to="/login" className="hover:text-[#0d9488]">Sign in</Link>
           </div>
         </div>

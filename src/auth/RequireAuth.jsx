@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 
+// wrapper so random people cant open /admin etc
 export default function RequireAuth({ roles, children }) {
   const { user, loading } = useAuth();
   if (loading) return <div style={{ padding: 24 }}>Loading...</div>;

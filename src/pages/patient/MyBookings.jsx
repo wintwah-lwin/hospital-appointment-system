@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiGet, apiPost } from "../api/client.js";
+import { apiGet, apiPost } from "../../api/client.js";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function MyBookings() {
@@ -71,7 +71,7 @@ export default function MyBookings() {
             >
               <div className="flex-1 min-w-[200px]">
                 <div className="font-medium text-slate-900">{a.doctorNameSnapshot || "-"}</div>
-                <div className="text-sm text-slate-600">{a.category} · {a.institutionName || "-"}</div>
+                <div className="text-sm text-slate-600">{a.category}</div>
                 <div className="text-sm text-slate-500 mt-0.5">{new Date(a.startTime).toLocaleString()}</div>
                 {isCheckedIn && a.clinicRoomNumber && <div className="text-xs text-slate-500 mt-1">Room {a.clinicRoomNumber}</div>}
               </div>

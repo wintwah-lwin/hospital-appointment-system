@@ -69,6 +69,25 @@ export const getAvailableSlots = async (req, res) => {
   const { date, doctorId, category } = req.query;
   const dateStr = date || new Date().toISOString().slice(0, 10);
   const docId = doctorId && doctorId !== "undefined" && doctorId !== "null" ? doctorId : null;
-  const slots = await getAvailableSlotsForDate(dateStr, docId, category || null);
-  res.json({ date: dateStr, slots: slots.filter(s => s.available) });
+  const rows = await getAvailableSlotsForDate(dateStr, docId, category || null);
+  const slots = [];
+  for (const row of rows) {
+    for (const p of row.parts || []) {
+      if (p.available) {
+        slots.push({
+          doctorId: row.doctorId,
+          doctorName: row.doctorName,
+          specialty: row.specialty,
+          slotLabel: row.slotLabel,
+          slotRoom: row.slotRoom,
+          anchorTime: row.anchorTime,
+          slotPart: p.part,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          partLabel: p.label
+        });
+      }
+    }
+  }
+  res.json({ date: dateStr, slots });
 };

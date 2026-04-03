@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPatch } from "../api/client.js";
-import { useAuth } from "../auth/AuthContext.jsx";
+import { apiGet, apiPost, apiPatch } from "../../api/client.js";
+import { useAuth } from "../../auth/AuthContext.jsx";
 
 const STATUS_LIFECYCLE = "Booked → Checked-In → Waiting → In Consultation → Completed";
 const STATUS_BADGE = {
@@ -254,7 +254,6 @@ export default function StaffDashboard() {
               <tr>
                 <th className="py-3">When</th>
                 <th className="py-3">Patient</th>
-                <th className="py-3">Institution</th>
                 <th className="py-3">Specialty</th>
                 <th className="py-3">Queue</th>
                 <th className="py-3">Status</th>
@@ -262,12 +261,11 @@ export default function StaffDashboard() {
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {appointments.length === 0 ? (
-                <tr><td colSpan={6} className="py-6 text-zinc-500">No appointments.</td></tr>
+                <tr><td colSpan={5} className="py-6 text-zinc-500">No appointments.</td></tr>
               ) : appointments.map(a => (
                 <tr key={a._id}>
                   <td className="py-3">{new Date(a.startTime).toLocaleString()}</td>
                   <td className="py-3">{a.patientName}</td>
-                  <td className="py-3">{a.institutionName || "-"}</td>
                   <td className="py-3">{a.category}</td>
                   <td className="py-3">{a.queueCategory}</td>
                   <td className="py-3">

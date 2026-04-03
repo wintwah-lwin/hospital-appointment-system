@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost } from "../api/client.js";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../../api/client.js";
 import { Link } from "react-router-dom";
+import { anchorSlotLabelForAppointment } from "./appointmentUtils.js";
 
 const FIXED_SLOTS = [
   { time: "09:00", label: "9am" },
@@ -96,6 +97,33 @@ function DaySlotEditor({ days, onChange, rooms }) {
   );
 }
 
+const TZ_SG = "Asia/Singapore";
+const SLOT_BLOCKING = ["Booked", "Checked-In", "Waiting", "In Consultation"];
+
+const DOCTOR_SPECIALTY_OPTIONS = ["General", "Cardiology", "Neurology", "Orthopedics"];
+
+function RoomSlotAppointmentsLink({ room, dateYmd, doctorId, slotTime, className, children }) {
+  const qs = new URLSearchParams({
+    room,
+    date: dateYmd,
+    doctorId: String(doctorId),
+    anchor: slotTime
+  });
+  return (
+    <Link to={`/admin/appointments?${qs.toString()}`} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+function ymdForNextWeekdayFromToday(dow) {
+  const now = new Date();
+  const diff = (dow - now.getDay() + 7) % 7;
+  const t = new Date(now);
+  t.setDate(now.getDate() + diff);
+  return t.toLocaleDateString("en-CA", { timeZone: TZ_SG });
+}
+
 function StatusBadge({ status }) {
   const map = {
     "Overdue": "bg-amber-500 text-white",
@@ -134,7 +162,6 @@ export default function AdminDashboard() {
   const [editSpecialty, setEditSpecialty] = useState("");
   const [editDays, setEditDays] = useState([]);
   const [recordsDay, setRecordsDay] = useState(1);
-
   async function load() {
     setError("");
     try {
@@ -171,8 +198,13 @@ export default function AdminDashboard() {
       setError("Please select at least one day with at least one time slot.");
       return;
     }
+    const spec = String(specialty || "").trim();
+    if (!spec) {
+      setError("Please choose a specialty.");
+      return;
+    }
     try {
-      await apiPost("/api/doctors", { name, specialty, isActive: true, days });
+      await apiPost("/api/doctors", { name, specialty: spec, isActive: true, days });
       setName(""); setSpecialty(""); setDays([]);
       await load();
       await loadSchedules();
@@ -189,9 +221,14 @@ export default function AdminDashboard() {
       setError("Please select at least one day with at least one time slot.");
       return;
     }
+    const editSpec = String(editSpecialty || "").trim();
+    if (!editSpec) {
+      setError("Please select a specialty.");
+      return;
+    }
     setError("");
     try {
-      await apiPatch(`/api/doctors/${editingDoctor._id}`, { name: editName, specialty: editSpecialty });
+      await apiPatch(`/api/doctors/${editingDoctor._id}`, { name: editName, specialty: editSpec });
       await apiPatch(`/api/schedule/doctors/${editingDoctor._id}`, { days: editDays });
       setEditingDoctor(null);
       await load();
@@ -207,7 +244,7 @@ export default function AdminDashboard() {
     const d = (sched.days && sched.days.length) ? sched.days : [];
     setEditingDoctor(doc);
     setEditName(doc.name);
-    setEditSpecialty(doc.specialty || "");
+    setEditSpecialty(doc.specialty && String(doc.specialty).trim() ? doc.specialty : "General");
     setEditDays(d);
     setError("");
   }
@@ -296,7 +333,13 @@ export default function AdminDashboard() {
               </label>
               <label className="block">
                 <span className="text-sm text-zinc-600 font-medium">Specialty</span>
-                <input value={editSpecialty} onChange={(e) => setEditSpecialty(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" placeholder="e.g., Cardiology" />
+                <select value={editSpecialty} onChange={(e) => setEditSpecialty(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent bg-white">
+                  <option value="">Select specialty…</option>
+                  {editSpecialty && !DOCTOR_SPECIALTY_OPTIONS.includes(editSpecialty) ? (
+                    <option value={editSpecialty}>{editSpecialty} (current)</option>
+                  ) : null}
+                  {DOCTOR_SPECIALTY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </label>
               <label className="block">
                 <span className="text-sm text-zinc-600 font-medium">Working days & slots</span>
@@ -317,16 +360,17 @@ export default function AdminDashboard() {
           <p className="text-sm text-zinc-500 mb-4">Select which days each doctor works and assign time slots (9am, 11am, 2pm, 4pm, 5pm) with rooms per day.</p>
 
           <form onSubmit={addDoctor} className="space-y-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="block">
-                <span className="text-sm text-zinc-600 font-medium">Name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" required />
-              </label>
-              <label className="block">
-                <span className="text-sm text-zinc-600 font-medium">Specialty</span>
-                <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" placeholder="e.g., Cardiology" />
-              </label>
-            </div>
+            <label className="block max-w-md">
+              <span className="text-sm text-zinc-600 font-medium">Name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" required />
+            </label>
+            <label className="block max-w-md">
+              <span className="text-sm text-zinc-600 font-medium">Specialty</span>
+              <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent bg-white">
+                <option value="">Select specialty…</option>
+                {DOCTOR_SPECIALTY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
             <label className="block">
               <span className="text-sm text-zinc-600 font-medium">Working days & slots</span>
               <div className="mt-1"><DaySlotEditor days={days} onChange={setDays} rooms={rooms} /></div>
@@ -365,7 +409,9 @@ export default function AdminDashboard() {
               <tbody className="divide-y divide-zinc-100">
                 {doctors.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-6 text-zinc-500">No doctors yet.</td></tr>
-                ) : doctors.map(d => {
+                ) : (() => {
+                  const recordsDateYmd = ymdForNextWeekdayFromToday(recordsDay);
+                  return doctors.map(d => {
                   const sched = schedules.find(s => String(s.doctorId) === String(d._id)) || {};
                   const dayConfig = (sched.days || []).find(x => x.dayOfWeek === recordsDay);
                   const slots = dayConfig?.slots || [];
@@ -379,9 +425,17 @@ export default function AdminDashboard() {
                         return (
                           <td key={f.time} className="px-4 py-3">
                             {found ? (
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 text-white">
-                                {found.room}
-                              </span>
+                              <RoomSlotAppointmentsLink
+                                room={found.room}
+                                dateYmd={recordsDateYmd}
+                                doctorId={d._id}
+                                slotTime={f.time}
+                                className="inline-block align-middle max-w-full"
+                              >
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition cursor-pointer">
+                                  {found.room}
+                                </span>
+                              </RoomSlotAppointmentsLink>
                             ) : (
                               <span className="text-zinc-400">—</span>
                             )}
@@ -401,7 +455,8 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   );
-                })}
+                });
+                })()}
               </tbody>
             </table>
           </div>
@@ -410,7 +465,7 @@ export default function AdminDashboard() {
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900 mb-1">Doctor Timetable</h2>
-          <p className="text-sm text-zinc-500 mb-4">Select a day or date to see who works. Green = Available · Red = Booked.</p>
+          <p className="text-sm text-zinc-500 mb-4">Select a day or date to see who works. Green = both sessions free · Amber = one booked · Red = both booked (two patients per time band).</p>
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <div>
               <span className="text-sm font-medium text-zinc-600 mr-2">Day:</span>
@@ -448,6 +503,12 @@ export default function AdminDashboard() {
             <Link to="/admin/booking-load" className="px-3 py-2 rounded-xl border border-zinc-200 text-sm hover:bg-zinc-50 transition inline-flex items-center text-zinc-700">
               View booking load
             </Link>
+            <Link to="/admin/appointments" className="px-3 py-2 rounded-xl border border-zinc-200 text-sm hover:bg-zinc-50 transition inline-flex items-center text-zinc-700">
+              Appointments
+            </Link>
+            <Link to="/admin/room-bookings" className="px-3 py-2 rounded-xl border border-zinc-200 text-sm hover:bg-zinc-50 transition inline-flex items-center text-zinc-700">
+              Room bookings
+            </Link>
           </div>
           <div className="overflow-x-auto rounded-xl border border-zinc-100">
             <table className="w-full text-sm table-fixed">
@@ -467,11 +528,13 @@ export default function AdminDashboard() {
                     const d = a.startTime ? new Date(a.startTime).toLocaleDateString("en-CA", { timeZone: TZ }) : "";
                     return d === timetableDate && blockingStatuses.includes(a.status);
                   });
-                  const toSlotTime = (d) => new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-                  const bookedKeys = new Set(
-                    dateAppointments.map(a => `${String(a.doctorId)}-${toSlotTime(a.startTime)}`)
-                  );
                   const slotToKey = (doctorId, time) => `${doctorId}-${time}`;
+                  const slotBookedCount = new Map();
+                  for (const a of dateAppointments) {
+                    const lab = anchorSlotLabelForAppointment(a, timetableDate);
+                    const k = slotToKey(String(a.doctorId), lab);
+                    slotBookedCount.set(k, (slotBookedCount.get(k) || 0) + 1);
+                  }
                   const rows = doctors.map(d => {
                     const sched = schedules.find(s => String(s.doctorId) === String(d._id)) || {};
                     const dayConfig = (sched.days || []).find(x => x.dayOfWeek === dayOfWeek);
@@ -487,12 +550,24 @@ export default function AdminDashboard() {
                         const found = r.slots.find(x => x.time === f.time);
                         if (!found) return <td key={f.time} className="px-4 py-3"><span className="text-zinc-400">—</span></td>;
                         const key = slotToKey(String(r.doctor._id), found.time);
-                        const isBooked = bookedKeys.has(key);
+                        const cnt = slotBookedCount.get(key) || 0;
+                        const loadCls =
+                          cnt === 0 ? "bg-emerald-600 text-white"
+                            : cnt >= 2 ? "bg-red-600 text-white"
+                              : "bg-amber-500 text-white";
                         return (
                           <td key={f.time} className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${isBooked ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}>
-                              {found.room}
-                            </span>
+                            <RoomSlotAppointmentsLink
+                              room={found.room}
+                              dateYmd={timetableDate}
+                              doctorId={r.doctor._id}
+                              slotTime={found.time}
+                              className="inline-block align-middle max-w-full"
+                            >
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-90 transition cursor-pointer ${loadCls}`}>
+                                {found.room}{cnt > 0 ? ` · ${cnt}/2` : ""}
+                              </span>
+                            </RoomSlotAppointmentsLink>
                           </td>
                         );
                       })}

@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
 
-// Singapore-style status lifecycle: Booked → Checked-In → Waiting → In Consultation → Completed
-// Alternates: Booked → Cancelled; Checked-In → No Show
 const STATUS_ENUM = [
   "Booked",
   "Checked-In",
@@ -20,9 +18,6 @@ const appointmentSchema = new mongoose.Schema(
     patientName: { type: String, required: true },
     patientEmail: { type: String, default: "" },
 
-    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: "Institution", default: null },
-    institutionName: { type: String, default: "" },
-
     category: {
       type: String,
       enum: ["General", "Cardiology", "Neurology", "Orthopedics", "ICU", "Emergency"],
@@ -38,6 +33,10 @@ const appointmentSchema = new mongoose.Schema(
 
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
+
+    /** Timetable anchor (e.g. 9:00); consultation window is derived from slotPart */
+    slotAnchorTime: { type: Date, default: null },
+    slotPart: { type: Number, enum: [1, 2], default: 1 },
 
     status: {
       type: String,

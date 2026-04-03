@@ -3,6 +3,7 @@ import {
   createAppointment,
   listMyAppointments,
   listAllAppointments,
+  listAppointmentsByRoomAndDate,
   getQueueForDoctor,
   cancelAppointment,
   editAppointment,
@@ -29,6 +30,8 @@ router.get("/queue/doctor", requireAuth, requireRole("staff", "admin"), getQueue
 
 // Admin: clear all appointments (must be before :id)
 router.delete("/clear", requireAuth, requireRole("admin"), clearAllAppointments);
+
+router.get("/by-room", requireAuth, requireRole("admin"), listAppointmentsByRoomAndDate);
 
 // Shared (owner/admin/staff)
 router.get("/:id", requireAuth, getAppointmentById);

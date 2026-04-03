@@ -1,22 +1,47 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiGet } from "../api/client.js";
+import { apiGet } from "../../api/client.js";
 
 const SLOT_ORDER = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 const SLOT_LABEL = { "09:00": "9am", "11:00": "11am", "14:00": "2pm", "16:00": "4pm", "17:00": "5pm" };
-const CAPACITY_PER_DOCTOR_SLOT = 3;
+/** Fallback if timetable row has no capacity field (two sessions per anchor). */
+const CAPACITY_FALLBACK = 2;
 const TZ = "Asia/Singapore";
+const PART1_WAIT_MIN = 5;
+const CONSULT_MIN = 25;
+const REST_BETWEEN_MIN = 5;
+
+function addMinutes(d, m) {
+  return new Date(d.getTime() + m * 60 * 1000);
+}
+
+function slotToDateAnchor(dateStr, hhmm) {
+  const [h, mi] = hhmm.split(":").map(Number);
+  return new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:00+08:00`);
+}
+
+/** Map appointment to timetable anchor key (09:00, 11:00, …) for the given calendar date. */
+function anchorSlotLabelForAppointment(a, dateYmd) {
+  if (a.slotAnchorTime) {
+    return new Date(a.slotAnchorTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+  }
+  const t = new Date(a.startTime);
+  for (const ft of SLOT_ORDER) {
+    const anchor = slotToDateAnchor(dateYmd, ft);
+    const p1s = addMinutes(anchor, PART1_WAIT_MIN);
+    const p1e = addMinutes(p1s, CONSULT_MIN);
+    const p2s = addMinutes(p1e, REST_BETWEEN_MIN);
+    const p2e = addMinutes(p2s, CONSULT_MIN);
+    if (t >= p1s && t < p1e) return ft;
+    if (t >= p2s && t < p2e) return ft;
+  }
+  return new Date(a.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+}
 
 function toDatePart(dateLike) {
   const d = new Date(dateLike);
   return d.toLocaleDateString("en-CA", { timeZone: TZ }); // "YYYY-MM-DD"
 }
-function toHHMM(dateLike) {
-  const d = new Date(dateLike);
-  const s = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-  return s; // "09:00" format
-}
-
 function tokenDisplay(queueNumber) {
   if (!queueNumber) return "-";
   const m = String(queueNumber).match(/(\d+)$/);
@@ -73,7 +98,7 @@ export default function AdminBookingLoad() {
         doctorId: s.doctorId,
         doctorName: s.doctorName || "Unknown",
         time: s.slotLabel,
-        totalSlots: s.capacity ?? CAPACITY_PER_DOCTOR_SLOT,
+        totalSlots: s.capacity ?? CAPACITY_FALLBACK,
         booked: 0,
         checkedIn: 0,
         inside: 0
@@ -99,8 +124,8 @@ export default function AdminBookingLoad() {
     for (const a of appointments) {
       if (toDatePart(a.startTime) !== date) continue;
       if (!a.doctorId) continue;
-      const hhmm = toHHMM(a.startTime);
-      const key = `${String(a.doctorId)}|${hhmm}`;
+      const slotLabel = anchorSlotLabelForAppointment(a, date);
+      const key = `${String(a.doctorId)}|${slotLabel}`;
       const row = bySlotDoctor.get(key);
       if (!row) continue;
       if (["Booked", "Checked-In", "Waiting", "In Consultation"].includes(a.status)) {
@@ -121,7 +146,7 @@ export default function AdminBookingLoad() {
     return (appointments || [])
       .filter(a => toDatePart(a.startTime) === date)
       .filter(a => doctorFilter === "all" ? true : String(a.doctorId) === doctorFilter)
-      .filter(a => timeFilter === "all" ? true : toHHMM(a.startTime) === timeFilter)
+      .filter(a => timeFilter === "all" ? true : anchorSlotLabelForAppointment(a, date) === timeFilter)
       .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   }, [appointments, date, doctorFilter, timeFilter]);
 
@@ -166,7 +191,7 @@ export default function AdminBookingLoad() {
             {rows.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-6 text-zinc-500">No slot data for the selected filters.</td></tr>
             ) : rows.map((r) => {
-              const high = r.booked >= 4;
+              const high = r.totalSlots > 0 && r.booked >= r.totalSlots;
               return (
                 <tr key={`${r.doctorId}-${r.time}`} className="hover:bg-zinc-50/50">
                   <td className="px-4 py-3 font-medium text-zinc-900">{r.doctorName}</td>
@@ -194,7 +219,7 @@ export default function AdminBookingLoad() {
             <tr>
               <th className="text-left font-medium px-4 py-3">Patient</th>
               <th className="text-left font-medium px-4 py-3">Doctor</th>
-              <th className="text-left font-medium px-4 py-3">Time</th>
+              <th className="text-left font-medium px-4 py-3">Time / session</th>
               <th className="text-left font-medium px-4 py-3">Room</th>
               <th className="text-left font-medium px-4 py-3">Token</th>
               <th className="text-left font-medium px-4 py-3">Status</th>
@@ -207,7 +232,10 @@ export default function AdminBookingLoad() {
               <tr key={a._id} className="hover:bg-zinc-50/50">
                 <td className="px-4 py-3 font-medium text-zinc-900">{a.patientName || "-"}</td>
                 <td className="px-4 py-3 text-zinc-600">{a.doctorNameSnapshot || "-"}</td>
-                <td className="px-4 py-3 text-zinc-600">{new Date(a.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}</td>
+                <td className="px-4 py-3 text-zinc-600">
+                  {new Date(a.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                  {a.slotPart ? <span className="text-zinc-500"> · {a.slotPart === 1 ? "1st" : "2nd"}</span> : null}
+                </td>
                 <td className="px-4 py-3 text-zinc-600">{a.clinicRoomNumber || a.roomIdSnapshot || "-"}</td>
                 <td className="px-4 py-3 font-mono font-medium">{tokenDisplay(a.queueNumber)}</td>
                 <td className="px-4 py-3">

@@ -125,7 +125,6 @@ export default function CheckInKiosk() {
             <div className="rounded-xl bg-zinc-800/50 p-4 space-y-2 text-sm">
               <div><span className="text-zinc-500">Clinic:</span> {appointment.category}</div>
               <div><span className="text-zinc-500">Time:</span> {new Date(appointment.startTime).toLocaleString()}</div>
-              <div><span className="text-zinc-500">Institution:</span> {appointment.institutionName || "-"}</div>
             </div>
             <div className="flex gap-3">
               <button onClick={handleCheckIn} className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-3 font-medium">

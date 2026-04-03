@@ -2,9 +2,8 @@ import Appointment from "../models/Appointment.js";
 import Doctor from "../models/Doctor.js";
 import Bed from "../models/Bed.js";
 import User from "../models/User.js";
-import Institution from "../models/Institution.js";
-import { SLOT_MINUTES, addMinutes, validateBookingWindow, isDoctorAvailable, findAvailableRoom } from "../utils/availability.js";
-import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay } from "../utils/schedule.js";
+import { addMinutes, validateBookingWindow, isDoctorAvailable, findAvailableRoom, BLOCKING_STATUSES, sessionPartWindow, CONSULT_MIN } from "../utils/availability.js";
+import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay, isAnchorInSchedule, anchorTimeLabelSG, slotToDate } from "../utils/schedule.js";
 import { notifyUser } from "../utils/notify.js";
 
 const SPECIALIST_CATEGORIES = ["Cardiology", "Neurology", "Orthopedics"];
@@ -19,37 +18,48 @@ function patientAllowedCategory(category) {
   return ["General", "Cardiology", "Neurology", "Orthopedics"].includes(category);
 }
 
-// Extract HH:mm in Singapore time (matches schedule slot format "09:00", "11:00", etc.)
-function hhmm(dateLike) {
-  const d = new Date(dateLike);
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Singapore",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).formatToParts(d);
-  const hour = (parts.find(p => p.type === "hour")?.value || "00").padStart(2, "0");
-  const minute = (parts.find(p => p.type === "minute")?.value || "00").padStart(2, "0");
-  return `${hour}:${minute}`;
-}
-
-async function pickDoctorSlotRoom({ doctorId, startTime }) {
+async function pickDoctorSlotRoom({ doctorId, slotAnchorTime, consultStart }) {
   const sched = await getDoctorSchedule(doctorId);
-  const d = new Date(startTime);
+  const anchor = slotAnchorTime ? new Date(slotAnchorTime) : null;
+  if (anchor) {
+    const dayOfWeek = anchor.getDay();
+    const slots = getSlotsForDay(sched, dayOfWeek);
+    const time = anchorTimeLabelSG(anchor);
+    const slot = slots.find(s => String(s.time) === time);
+    if (!slot?.room) return { ok: false, reason: "Doctor slot room is not configured" };
+    const bed = await Bed.findOne({ bedId: slot.room }).lean();
+    if (!bed) return { ok: false, reason: `Configured room ${slot.room} not found` };
+    return { ok: true, bed };
+  }
+  const d = new Date(consultStart);
   const dayOfWeek = d.getDay();
   const slots = getSlotsForDay(sched, dayOfWeek);
-  const time = hhmm(startTime);
-  const slot = slots.find(s => String(s.time) === time);
-  if (!slot?.room) return { ok: false, reason: "Doctor slot room is not configured" };
-
-  const bed = await Bed.findOne({ bedId: slot.room }).lean();
-  if (!bed) return { ok: false, reason: `Configured room ${slot.room} not found` };
-
-  return { ok: true, bed };
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === "year").value;
+  const mo = parts.find(p => p.type === "month").value;
+  const da = parts.find(p => p.type === "day").value;
+  const dateStr = `${y}-${mo}-${da}`;
+  for (const s of slots) {
+    const anch = slotToDate(dateStr, s.time);
+    for (const part of [1, 2]) {
+      const { start, end } = sessionPartWindow(anch, part);
+      if (d >= start && d < end) {
+        const bed = await Bed.findOne({ bedId: s.room }).lean();
+        if (!bed) return { ok: false, reason: `Configured room ${s.room} not found` };
+        return { ok: true, bed };
+      }
+    }
+  }
+  return { ok: false, reason: "No room for this time in schedule" };
 }
 
 export const createAppointment = async (req, res) => {
-  const { institutionId, category, doctorId, startTime, notes, queueCategory } = req.body || {};
+  const { category, doctorId, notes, queueCategory, slotAnchorTime, slotPart } = req.body || {};
   const user = req.user;
 
   const patientUser = await User.findById(user.id).select("email displayName isBanned").lean();
@@ -58,8 +68,16 @@ export const createAppointment = async (req, res) => {
   const cat = normalizeCategory(category);
   if (!patientAllowedCategory(cat)) return res.status(403).json({ message: "Invalid specialty" });
 
-  const start = new Date(startTime);
-  if (Number.isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+  const part = Number(slotPart);
+  if (part !== 1 && part !== 2) {
+    return res.status(400).json({ message: "slotPart must be 1 (first session) or 2 (second session)" });
+  }
+  const anchor = slotAnchorTime ? new Date(slotAnchorTime) : null;
+  if (!anchor || Number.isNaN(anchor.getTime())) {
+    return res.status(400).json({ message: "slotAnchorTime is required (timetable slot start, e.g. 9:00)" });
+  }
+
+  const { start, end } = sessionPartWindow(anchor, part);
 
   const windowCheck = await validateBookingWindow({ startTime: start });
   if (!windowCheck.ok) return res.status(400).json({ message: windowCheck.reason });
@@ -69,7 +87,17 @@ export const createAppointment = async (req, res) => {
     return res.status(400).json({ message: "Referral required for specialist appointments" });
   }
 
-  const end = addMinutes(start, SLOT_MINUTES);
+  const patientClash = await Appointment.findOne({
+    patientUserId: user.id,
+    status: { $in: BLOCKING_STATUSES },
+    startTime: { $lt: end },
+    endTime: { $gt: start }
+  }).lean();
+  if (patientClash) {
+    return res.status(409).json({
+      message: "You already have an appointment that overlaps this time. Cancel or reschedule the other booking first."
+    });
+  }
 
   let docId = doctorId || null;
   let docSnap = "";
@@ -78,23 +106,18 @@ export const createAppointment = async (req, res) => {
     const doctor = await Doctor.findById(docId).lean();
     if (!doctor) return res.status(404).json({ message: "Doctor not found" });
     const sched = await getDoctorSchedule(docId);
-    if (!isSlotInSchedule(sched, start, start)) return res.status(400).json({ message: "Selected time is not in the doctor's timetable. Please choose an available slot." });
+    if (!isAnchorInSchedule(sched, anchor)) {
+      return res.status(400).json({ message: "Selected slot is not in the doctor's timetable. Please choose an available slot." });
+    }
     const docAvail = await isDoctorAvailable({ doctorId: docId, startTime: start, endTime: end });
     if (!docAvail.ok) return res.status(409).json({ message: "Slot unavailable: " + docAvail.reason });
     docSnap = doctor.name;
   }
 
-  // Strict: if doctor chosen, use the doctor's configured room for that slot
   const roomPick = docId
-    ? await pickDoctorSlotRoom({ doctorId: docId, startTime: start })
+    ? await pickDoctorSlotRoom({ doctorId: docId, slotAnchorTime: anchor, consultStart: start })
     : await findAvailableRoom({ startTime: start, endTime: end });
   if (!roomPick.ok) return res.status(409).json({ message: "No available slot: " + roomPick.reason });
-
-  let institutionName = "";
-  if (institutionId) {
-    const inst = await Institution.findById(institutionId).lean();
-    if (inst) institutionName = inst.name;
-  }
 
   const qCat = ["New", "Follow-up", "Priority"].includes(queueCategory) ? queueCategory : "New";
 
@@ -102,8 +125,6 @@ export const createAppointment = async (req, res) => {
     patientUserId: user.id,
     patientName: (user.displayName && String(user.displayName).trim()) ? String(user.displayName).trim() : (patientUser?.displayName || "Patient"),
     patientEmail: (patientUser?.email || user.email || "").toLowerCase().trim(),
-    institutionId: institutionId || null,
-    institutionName,
     category: cat,
     doctorId: docId,
     doctorNameSnapshot: docSnap,
@@ -119,7 +140,9 @@ export const createAppointment = async (req, res) => {
     bookingSource: "online",
     createdByRole: "patient",
     createdByUserId: user.id,
-    notes: notes || ""
+    notes: notes || "",
+    slotAnchorTime: anchor,
+    slotPart: part
   });
 
   await notifyUser({ userId: user.id, role: "patient", type: "BOOKED", message: "Appointment booked successfully.", appointmentId: appt._id });
@@ -129,11 +152,12 @@ export const createAppointment = async (req, res) => {
     status: appt.status,
     appointmentId: String(appt._id),
     queueCategory: appt.queueCategory,
-    institutionName: appt.institutionName,
     doctorNameSnapshot: appt.doctorNameSnapshot,
     startTime: appt.startTime,
     endTime: appt.endTime,
-    clinicRoomNumber: appt.clinicRoomNumber
+    clinicRoomNumber: appt.clinicRoomNumber,
+    slotPart: appt.slotPart,
+    slotAnchorTime: appt.slotAnchorTime
   });
 };
 
@@ -155,6 +179,39 @@ export const listAllAppointments = async (req, res) => {
   const enriched = appts.map(a => {
     const displayName = userMap[String(a.patientUserId)];
     const name = (displayName && String(displayName).trim()) ? String(displayName).trim() : "Patient";
+    return { ...a, patientName: name };
+  });
+  res.json(enriched);
+};
+
+const SG_TZ = "Asia/Singapore";
+
+export const listAppointmentsByRoomAndDate = async (req, res) => {
+  const { room, date } = req.query;
+  if (!room || !date) {
+    return res.status(400).json({ message: "Query params room and date are required (e.g. ?room=Room-01&date=2026-04-03)" });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+    return res.status(400).json({ message: "date must be YYYY-MM-DD" });
+  }
+
+  const appts = await Appointment.find({
+    $or: [{ clinicRoomNumber: room }, { roomIdSnapshot: room }]
+  })
+    .sort({ startTime: 1 })
+    .lean();
+
+  const filtered = appts.filter(a => {
+    const d = a.startTime ? new Date(a.startTime).toLocaleDateString("en-CA", { timeZone: SG_TZ }) : "";
+    return d === date;
+  });
+
+  const userIds = [...new Set(filtered.map(a => a.patientUserId).filter(Boolean))];
+  const users = await User.find({ _id: { $in: userIds } }).select("_id displayName").lean();
+  const userMap = Object.fromEntries(users.map(u => [String(u._id), u.displayName]));
+  const enriched = filtered.map(a => {
+    const displayName = userMap[String(a.patientUserId)];
+    const name = (displayName && String(displayName).trim()) ? String(displayName).trim() : (a.patientName || "Patient");
     return { ...a, patientName: name };
   });
   res.json(enriched);
@@ -194,7 +251,7 @@ export const cancelAppointment = async (req, res) => {
 
 export const editAppointment = async (req, res) => {
   const { id } = req.params;
-  const { category, doctorId, startTime, notes, queueCategory } = req.body || {};
+  const { category, doctorId, startTime, notes, queueCategory, slotAnchorTime, slotPart } = req.body || {};
 
   const appt = await Appointment.findById(id);
   if (!appt) return res.status(404).json({ message: "Not found" });
@@ -204,20 +261,50 @@ export const editAppointment = async (req, res) => {
   if (!isAdmin && !isOwner) return res.status(403).json({ message: "Forbidden" });
   if (appt.status !== "Booked") return res.status(400).json({ message: "Only Booked appointments can be rescheduled" });
 
-  // Reschedule only allowed 24 hours before appointment (admins can bypass)
   if (!isAdmin) {
     const hoursUntil = (new Date(appt.startTime).getTime() - Date.now()) / (1000 * 60 * 60);
     if (hoursUntil < 24) return res.status(400).json({ message: "Rescheduling is only allowed at least 24 hours before your appointment time." });
   }
 
   const cat = category ? normalizeCategory(category) : appt.category;
-  const start = startTime ? new Date(startTime) : appt.startTime;
-  if (Number.isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+
+  let start;
+  let end;
+  let anchor;
+  let partNum;
+
+  if (slotAnchorTime && (Number(slotPart) === 1 || Number(slotPart) === 2)) {
+    anchor = new Date(slotAnchorTime);
+    partNum = Number(slotPart);
+    if (Number.isNaN(anchor.getTime())) return res.status(400).json({ message: "Invalid slotAnchorTime" });
+    const win = sessionPartWindow(anchor, partNum);
+    start = win.start;
+    end = win.end;
+  } else {
+    start = startTime ? new Date(startTime) : appt.startTime;
+    if (Number.isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+    const durMin =
+      appt.startTime && appt.endTime
+        ? Math.max(1, Math.round((new Date(appt.endTime) - new Date(appt.startTime)) / 60000))
+        : CONSULT_MIN;
+    end = addMinutes(start, durMin);
+    anchor = appt.slotAnchorTime ? new Date(appt.slotAnchorTime) : null;
+    partNum = appt.slotPart;
+  }
 
   const windowCheck = await validateBookingWindow({ startTime: start });
   if (!windowCheck.ok) return res.status(400).json({ message: windowCheck.reason });
 
-  const end = addMinutes(start, SLOT_MINUTES);
+  const patientClash = await Appointment.findOne({
+    patientUserId: appt.patientUserId,
+    status: { $in: BLOCKING_STATUSES },
+    startTime: { $lt: end },
+    endTime: { $gt: start },
+    _id: { $ne: appt._id }
+  }).lean();
+  if (patientClash) {
+    return res.status(409).json({ message: "You already have another appointment that overlaps this time." });
+  }
 
   let docId = appt.doctorId;
   let docSnap = appt.doctorNameSnapshot;
@@ -231,9 +318,17 @@ export const editAppointment = async (req, res) => {
     docId = newDoctorId;
     docSnap = doctor.name;
   }
+  if (docId) {
+    const sched = await getDoctorSchedule(docId);
+    if (anchor && (partNum === 1 || partNum === 2)) {
+      if (!isAnchorInSchedule(sched, anchor)) return res.status(400).json({ message: "Selected slot is not in the doctor's timetable." });
+    } else if (!isSlotInSchedule(sched, null, start)) {
+      return res.status(400).json({ message: "Selected time is not in the doctor's timetable." });
+    }
+  }
 
   const roomPick = docId
-    ? await pickDoctorSlotRoom({ doctorId: docId, startTime: start })
+    ? await pickDoctorSlotRoom({ doctorId: docId, slotAnchorTime: anchor, consultStart: start })
     : await findAvailableRoom({ startTime: start, endTime: end });
   if (!roomPick.ok) return res.status(409).json({ message: "No available slot: " + (roomPick.reason || "") });
 
@@ -245,6 +340,10 @@ export const editAppointment = async (req, res) => {
   appt.roomId = roomPick.bed._id;
   appt.roomIdSnapshot = roomPick.bed.bedId;
   appt.clinicRoomNumber = roomPick.bed.bedId || "";
+  if (anchor && (partNum === 1 || partNum === 2)) {
+    appt.slotAnchorTime = anchor;
+    appt.slotPart = partNum;
+  }
   if (notes !== undefined) appt.notes = notes;
   if (queueCategory) appt.queueCategory = ["New", "Follow-up", "Priority"].includes(queueCategory) ? queueCategory : appt.queueCategory;
 

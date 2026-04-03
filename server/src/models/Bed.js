@@ -11,3 +11,5 @@ const bedSchema = new mongoose.Schema(
 );
 
 export default mongoose.model("Bed", bedSchema);
+
+

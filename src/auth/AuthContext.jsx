@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { apiGet, apiPost } from "../api/client.js";
 
+// login state for whole app
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -9,10 +10,14 @@ export function AuthProvider({ children }) {
 
   async function refreshMe() {
     const token = localStorage.getItem("ic_token");
-    if (!token) { setUser(null); setLoading(false); return; }
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     try {
       const data = await apiGet("/api/auth/me");
-      setUser(data?.user ?? null);
+      setUser(data.user || null);
     } catch {
       localStorage.removeItem("ic_token");
       setUser(null);
@@ -21,7 +26,9 @@ export function AuthProvider({ children }) {
     }
   }
 
-  useEffect(() => { refreshMe(); }, []);
+  useEffect(() => {
+    refreshMe();
+  }, []);
 
   async function login(credentials) {
     const data = await apiPost("/api/auth/login", credentials);
@@ -42,8 +49,11 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
-  const value = useMemo(() => ({ user, loading, login, registerPatient, logout, refreshMe }), [user, loading]);
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={{ user, loading, login, registerPatient, logout, refreshMe }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 export function useAuth() {

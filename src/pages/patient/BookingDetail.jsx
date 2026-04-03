@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiGet, apiPost } from "../api/client.js";
+import { apiGet, apiPost } from "../../api/client.js";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 const CHECKED_IN_STATUSES = ["Checked-In", "Waiting", "In Consultation"];
@@ -53,7 +53,6 @@ export default function BookingDetail() {
           <div><span className="text-slate-500">Doctor:</span> {appt.doctorNameSnapshot || "-"}</div>
           <div><span className="text-slate-500">Specialty:</span> {appt.category || "-"}</div>
           <div><span className="text-slate-500">Date & time:</span> {new Date(appt.startTime).toLocaleString()}</div>
-          <div><span className="text-slate-500">Institution:</span> {appt.institutionName || "-"}</div>
           <div><span className="text-slate-500">Queue:</span> {appt.queueCategory || "-"}</div>
           <div><span className="text-slate-500">Status:</span> <span className="font-medium text-slate-900">{appt.status}</span></div>
           {appt.queueNumber && <div><span className="text-slate-500">Token:</span> <span className="font-mono font-bold text-primary-600">#{appt.queueNumber}</span></div>}

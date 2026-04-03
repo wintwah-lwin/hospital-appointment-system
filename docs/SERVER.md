@@ -28,18 +28,16 @@ You need it **whenever** you run the full app: login, booking, admin, notificati
 
 - **`/api/auth`** — Register, login, “me” (current user).
 - **`/api/doctors`** — Doctor CRUD (admin).
-- **`/api/appointments`** — Bookings, queue, check-in, staff actions.
-- **`/api/beds`** — Rooms/beds used for scheduling and capacity.
+- **`/api/appointments`** — Bookings, queue, check-in, staff actions. Admin: **`GET /api/appointments/by-room?room=Room-01&date=YYYY-MM-DD`** lists bookings for that room on that date (Singapore calendar day).
+- **`/api/beds`** — Rooms (capacity / scheduling; each document has a `bedId` code like `Room-01`).
 - **`/api/schedule`** — Doctor timetables, available slots.
-- **`/api/snapshot`** — Hospital status summary for the Status page.
 - **`/api/notifications`** — In-app notifications for users.
-- **`/api/emergencies`** — Emergency queue collection (used in snapshot counts; no dedicated UI in current app).
 - **`/api/security`** — Admin login audit and alerts.
 - **`/api/users`** — Admin: patients list, ban, delete.
 
 ## Configuration
 
-- **`server/.env`** — Created from **`.env.example`**. Must set **`MONGO_URI`** and **`JWT_SECRET`**. Optional: admin seed, `SKIP_GEO_CHECK=true` for local dev if login geo checks get in the way.
+- **`server/.env`** — Created from **`.env.example`**. Must set **`MONGO_URI`** (local MongoDB, e.g. `mongodb://127.0.0.1:27017/intellicare`) and **`JWT_SECRET`**. Optional: admin seed, `SKIP_GEO_CHECK=true` for local dev if login geo checks get in the way.
 
 ## Do you need the whole server?
 

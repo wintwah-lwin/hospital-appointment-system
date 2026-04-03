@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../api/client.js";
-import { useAuth } from "../auth/AuthContext.jsx";
+import { apiGet, apiPost } from "../../api/client.js";
+import { useAuth } from "../../auth/AuthContext.jsx";
 import { Link } from "react-router-dom";
 
 const SPECIALTIES = ["All doctors", "General", "Cardiology", "Neurology", "Orthopedics"];
@@ -10,7 +10,6 @@ export default function PatientBooking() {
   const { user } = useAuth();
 
   const [doctors, setDoctors] = useState([]);
-  const [availableSlots, setAvailableSlots] = useState([]);
   const [timetableSlots, setTimetableSlots] = useState([]);
   const [category, setCategory] = useState("All doctors");
   const [doctorId, setDoctorId] = useState("");
@@ -34,19 +33,6 @@ export default function PatientBooking() {
     }
   }
 
-  async function loadAvailableSlots() {
-    if (!doctorId || !bookingDate) {
-      setAvailableSlots([]);
-      return;
-    }
-    try {
-      const data = await apiGet(`/api/schedule/available?date=${bookingDate}&doctorId=${doctorId}&category=${category}`);
-      setAvailableSlots(data.slots || []);
-    } catch (e) {
-      setAvailableSlots([]);
-    }
-  }
-
   const [timetableMeta, setTimetableMeta] = useState(null);
   async function loadTimetable() {
     try {
@@ -65,13 +51,10 @@ export default function PatientBooking() {
     loadTimetable();
   }, [bookingDate]);
 
-  useEffect(() => {
-    loadAvailableSlots();
-  }, [bookingDate, doctorId, category]);
-
   const filteredDoctors = useMemo(() => {
     if (category === "All doctors") return doctors || [];
-    return (doctors || []).filter(d => d.specialty === category || d.specialty === "General");
+    // Only doctors whose specialty exactly matches the selected category (not "General" for every specialist filter)
+    return (doctors || []).filter(d => (d.specialty || "").trim() === category);
   }, [doctors, category]);
 
   const filteredTimetableSlots = useMemo(() => {
@@ -97,7 +80,7 @@ export default function PatientBooking() {
       return;
     }
     if (!selectedSlot) {
-      setError("Please select an available time slot from the timetable");
+      setError("Please select an available session (1st or 2nd) from the timetable");
       return;
     }
     setError("");
@@ -116,7 +99,8 @@ export default function PatientBooking() {
       const payload = {
         category: cat,
         doctorId: selectedSlot.doctorId,
-        startTime: selectedSlot.startTime,
+        slotAnchorTime: selectedSlot.anchorTime,
+        slotPart: selectedSlot.slotPart,
         queueCategory: "New",
         hasReferral: (cat && NEEDS_REFERRAL.includes(cat)) ? hasReferral : undefined,
         notes
@@ -152,7 +136,8 @@ export default function PatientBooking() {
   const confirmSummary = selectedSlot && doc ? {
     doctor: doc.name,
     date: new Date(selectedSlot.startTime).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
-    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
+    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" }),
+    session: selectedSlot.slotPart === 1 ? "1st session (after short wait)" : "2nd session"
   } : null;
 
   return (
@@ -179,8 +164,12 @@ export default function PatientBooking() {
                   <span className="font-medium text-slate-900">{confirmSummary.date}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Time</span>
+                  <span className="text-slate-500">Consult starts</span>
                   <span className="font-medium text-slate-900">{confirmSummary.time}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Session</span>
+                  <span className="font-medium text-slate-900">{confirmSummary.session}</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -266,6 +255,9 @@ export default function PatientBooking() {
             Timetable for {timetableMeta.dayName}, {bookingDate ? new Date(bookingDate + "T12:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""}
           </p>
         )}
+        <p className="text-xs text-slate-600 mb-3 max-w-3xl">
+          Each time band (e.g. 9am) has two sessions: <strong>1st</strong> (short wait then consult) and <strong>2nd</strong> (after a short break). Choose a green session; grey is already booked.
+        </p>
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
             {SPECIALTIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,9 +265,9 @@ export default function PatientBooking() {
           <input type="date" min={minDate} max={maxDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" title="Cannot book past dates" />
         </div>
         <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
-          <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(64px,1fr))] text-sm min-w-[420px]">
+          <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(88px,1fr))] text-sm min-w-[520px]">
             <div className="px-4 py-3 bg-slate-50 font-medium text-slate-600">Doctor</div>
-            {FIXED.map(f => <div key={f.value} className="px-4 py-3 bg-slate-50 font-medium text-slate-600">{f.label}</div>)}
+            {FIXED.map(f => <div key={f.value} className="px-2 py-3 bg-slate-50 font-medium text-slate-600 text-center">{f.label}</div>)}
             {byDoctor.length === 0 ? (
               <div className="col-span-6 px-4 py-8 text-slate-500 text-sm">No timetable for this date.</div>
             ) : byDoctor.map(r => (
@@ -283,19 +275,41 @@ export default function PatientBooking() {
                 <div className="px-4 py-3 font-medium text-slate-900 border-t border-slate-100">{r.name}</div>
                 {FIXED.map(f => {
                   const s = r.slots.find(sl => sl.slotLabel === f.value);
-                  const isSelected = selectedSlot && selectedSlot.doctorId === r.doctorId && s && String(selectedSlot.startTime) === String(s.startTime);
                   return (
-                    <div key={f.value} className="px-4 py-3 border-t border-slate-100">
-                      {s ? (
-                        <button
-                          type="button"
-                          onClick={() => { if (s.available) { setSelectedSlot(s); setDoctorId(s.doctorId); } }}
-                          disabled={!s.available}
-                          className={`block w-full py-1.5 rounded text-xs font-medium ${s.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
-                          title={s.available ? "Available" : "Booked"}
-                        >
-                          {s.available ? "✓" : "—"}
-                        </button>
+                    <div key={f.value} className="px-1.5 py-2 border-t border-slate-100">
+                      {s?.parts?.length ? (
+                        <div className="flex flex-col gap-1">
+                          {s.parts.map(p => {
+                            const pick = {
+                              doctorId: s.doctorId,
+                              doctorName: s.doctorName,
+                              anchorTime: s.anchorTime,
+                              slotPart: p.part,
+                              startTime: p.startTime,
+                              slotLabel: s.slotLabel
+                            };
+                            const isSelected = selectedSlot
+                              && selectedSlot.doctorId === pick.doctorId
+                              && selectedSlot.anchorTime === pick.anchorTime
+                              && selectedSlot.slotPart === pick.slotPart;
+                            return (
+                              <button
+                                key={p.part}
+                                type="button"
+                                onClick={() => {
+                                  if (!p.available) return;
+                                  setSelectedSlot(pick);
+                                  setDoctorId(s.doctorId);
+                                }}
+                                disabled={!p.available}
+                                className={`w-full py-1 rounded text-[11px] font-semibold leading-tight ${p.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
+                                title={p.available ? p.label : "Booked"}
+                              >
+                                {p.part === 1 ? "1st" : "2nd"}
+                              </button>
+                            );
+                          })}
+                        </div>
                       ) : <span className="text-slate-300">—</span>}
                     </div>
                   );
@@ -304,7 +318,7 @@ export default function PatientBooking() {
             ))}
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-2">Click a teal slot to select your time.</p>
+        <p className="text-xs text-slate-500 mt-2">Click <strong>1st</strong> or <strong>2nd</strong> on a teal button to select that session.</p>
       </section>
 
       {/* Step 2: Form */}
@@ -327,10 +341,10 @@ export default function PatientBooking() {
             <div className="min-w-[120px]">
               {selectedSlot ? (
                 <span className="inline-block px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium">
-                  {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })} with {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
+                  {FIXED.find(x => x.value === selectedSlot.slotLabel)?.label || selectedSlot.slotLabel} · {selectedSlot.slotPart === 1 ? "1st" : "2nd"} · {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })} — {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
                 </span>
               ) : (
-                <span className="text-slate-500 text-sm">Select a slot above</span>
+                <span className="text-slate-500 text-sm">Select a session above</span>
               )}
             </div>
           </div>
