@@ -2,7 +2,6 @@ node_modules
 dist
 .DS_Store
 
-# Never commit env files with secrets
 .env
 .env.local
 .env.development
@@ -12,15 +11,3 @@ dist
 .env.production.local
 *.env
 !.env.example
-
-# Frontend + backend env live under env/ (see env/*/ .env.example)
-env/frontend/.env
-env/frontend/.env.local
-env/server/.env
-env/server/.env.local
-
-# Old location: still supported if you have not migrated yet
-server/.env
-server/.env.local
-server/.env.production
-server/.env.*.local

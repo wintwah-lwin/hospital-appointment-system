@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import authRoutes from "./routes/authRoutes.js";
 import doctorRoutes from "./routes/doctorRoutes.js";
@@ -10,8 +9,6 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
 import securityRoutes from "./routes/securityRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
-
-dotenv.config();
 
 const app = express();
 

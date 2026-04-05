@@ -1,3 +1,4 @@
+import "./loadEnv.js";
 import app from "./src/app.js";
 import { connectDB } from "./src/config/db.js";
 import { runReminderEmails } from "./src/jobs/reminderEmails.js";
@@ -6,15 +7,6 @@ import Bed from "./src/models/Bed.js";
 import Doctor from "./src/models/Doctor.js";
 import DoctorSchedule from "./src/models/DoctorSchedule.js";
 import { hashPassword } from "./src/utils/password.js";
-import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envInRepo = path.join(__dirname, "..", "env", "server", ".env");
-const envNextToServer = path.join(__dirname, ".env");
-dotenv.config({ path: fs.existsSync(envInRepo) ? envInRepo : envNextToServer });
 
 await connectDB();
 

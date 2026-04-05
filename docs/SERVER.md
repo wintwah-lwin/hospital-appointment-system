@@ -1,44 +1,44 @@
-# What’s in `server/` and when you need it
+# Backend (`server/` folder)
 
-The **`server/`** folder is the **backend API** (Node.js + Express + MongoDB). The React app talks to it over HTTP (`http://localhost:5001` by default).
+This folder is the HTTP API: Node.js, Express, and MongoDB. The React app calls it (by default at `http://localhost:5001`). You need it running for login, bookings, admin tools, notifications, and the rest of the product.
 
-You need it **whenever** you run the full app: login, booking, admin, notifications, etc. You only skip it if you were running a purely static demo (this project is not set up for that).
+## Main entry files
 
-## Entry points
+| File | Purpose |
+|------|---------|
+| `server/server.js` | Connects to MongoDB, starts the HTTP server, runs scheduled jobs. |
+| `server/src/app.js` | Express application: middleware and all `/api/...` routes. |
 
-| File | Role |
-|------|------|
-| **`server/server.js`** | Starts the HTTP server and connects to MongoDB. |
-| **`server/src/app.js`** | Express app: middleware, mounts all `/api/...` routes. |
+## What lives in `server/src/`
 
-## Folders under `server/src/`
+| Folder | Purpose |
+|--------|---------|
+| `routes/` | Maps URLs to handlers (`/api/auth`, `/api/appointments`, and so on). |
+| `controllers/` | Request handling: bookings, login, lists, admin actions. |
+| `models/` | Mongoose schemas (users, appointments, doctors, rooms, etc.). |
+| `middleware/` | Authentication, roles, optional geo checks on login. |
+| `utils/` | Shared helpers: passwords, schedules, availability, notifications. |
+| `services/` | Larger pieces (for example login risk and IP checks). |
+| `jobs/` | Background work such as appointment reminders. |
+| `config/` | Database connection setup. |
 
-| Folder | What it holds | When it matters |
-|--------|---------------|-----------------|
-| **`routes/`** | URL → handler wiring (`/api/auth`, `/api/appointments`, …). | Every request hits a route. |
-| **`controllers/`** | Request/response logic (create booking, login, list doctors, …). | Business rules live here. |
-| **`models/`** | Mongoose schemas (User, Appointment, Doctor, Bed, …). | Defines what’s stored in MongoDB. |
-| **`middleware/`** | `requireAuth`, `requireRole`, geo checks for login/register. | Protects routes; filters by JWT role. |
-| **`utils/`** | Shared helpers: passwords, schedules, availability, doctor conflicts, notify. | Used by controllers. |
-| **`services/`** | Bigger helpers: risk engine for logins, IP/geo checks. | Security / login flows. |
-| **`jobs/`** | Background logic (e.g. appointment reminder notifications). | Runs on a schedule from `server.js`. |
-| **`config/`** | DB connection (`db.js`). | App startup. |
+## API areas (short map)
 
-## API areas (high level)
-
-- **`/api/auth`** — Register, login, “me” (current user).
-- **`/api/doctors`** — Doctor CRUD (admin).
-- **`/api/appointments`** — Bookings, queue, check-in, staff actions. Admin: **`GET /api/appointments/by-room?room=Room-01&date=YYYY-MM-DD`** lists bookings for that room on that date (Singapore calendar day).
-- **`/api/beds`** — Rooms (capacity / scheduling; each document has a `bedId` code like `Room-01`).
-- **`/api/schedule`** — Doctor timetables, available slots.
-- **`/api/notifications`** — In-app notifications for users.
-- **`/api/security`** — Admin login audit and alerts.
-- **`/api/users`** — Admin: patients list, ban, delete.
+- `/api/auth` — Registration, login, current user.
+- `/api/doctors` — Doctor records (admin).
+- `/api/appointments` — Booking, queue, check-in, staff flows. Admins can use `GET /api/appointments/by-room?room=Room-01&date=YYYY-MM-DD` for a room on a given day.
+- `/api/beds` — Rooms; each entry has a `bedId` such as `Room-01`.
+- `/api/schedule` — Doctor timetables and slots.
+- `/api/notifications` — In-app notifications.
+- `/api/security` — Login audit (admin).
+- `/api/users` — Patient listing and admin actions.
 
 ## Configuration
 
-- **`server/.env`** — Created from **`.env.example`**. Must set **`MONGO_URI`** (local MongoDB, e.g. `mongodb://127.0.0.1:27017/intellicare`) and **`JWT_SECRET`**. Optional: admin seed, `SKIP_GEO_CHECK=true` for local dev if login geo checks get in the way.
+Environment variables are loaded from `.env` at the repository root (copy from `.env.example`). You must set `MONGO_URI` and `JWT_SECRET`. Optional values include admin seed accounts and `SKIP_GEO_CHECK=true` for local development if geo checks block login.
 
-## Do you need the whole server?
+The frontend and server both read the same root `.env` file.
 
-**Yes**, for the product as built: the frontend is an SPA that calls these APIs. Removing pieces would mean changing the frontend or accepting broken features.
+## Do you need this server?
+
+Yes. The UI is built as a single-page app that depends on these APIs. Turning the server off means those features stop working unless you change the codebase.
