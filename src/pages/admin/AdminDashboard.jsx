@@ -102,15 +102,10 @@ const SLOT_BLOCKING = ["Booked", "Checked-In", "Waiting", "In Consultation"];
 
 const DOCTOR_SPECIALTY_OPTIONS = ["General", "Cardiology", "Neurology", "Orthopedics"];
 
-function RoomSlotAppointmentsLink({ room, dateYmd, doctorId, slotTime, className, children }) {
-  const qs = new URLSearchParams({
-    room,
-    date: dateYmd,
-    doctorId: String(doctorId),
-    anchor: slotTime
-  });
+function RoomSlotToRoomBookingsLink({ room, dateYmd, className, children }) {
+  const qs = new URLSearchParams({ room, date: dateYmd });
   return (
-    <Link to={`/admin/appointments?${qs.toString()}`} className={className}>
+    <Link to={`/admin/room-bookings?${qs.toString()}`} className={className}>
       {children}
     </Link>
   );
@@ -425,17 +420,15 @@ export default function AdminDashboard() {
                         return (
                           <td key={f.time} className="px-4 py-3">
                             {found ? (
-                              <RoomSlotAppointmentsLink
+                              <RoomSlotToRoomBookingsLink
                                 room={found.room}
                                 dateYmd={recordsDateYmd}
-                                doctorId={d._id}
-                                slotTime={f.time}
                                 className="inline-block align-middle max-w-full"
                               >
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition cursor-pointer">
                                   {found.room}
                                 </span>
-                              </RoomSlotAppointmentsLink>
+                              </RoomSlotToRoomBookingsLink>
                             ) : (
                               <span className="text-zinc-400">—</span>
                             )}
@@ -557,17 +550,15 @@ export default function AdminDashboard() {
                               : "bg-amber-500 text-white";
                         return (
                           <td key={f.time} className="px-4 py-3">
-                            <RoomSlotAppointmentsLink
+                            <RoomSlotToRoomBookingsLink
                               room={found.room}
                               dateYmd={timetableDate}
-                              doctorId={r.doctor._id}
-                              slotTime={found.time}
                               className="inline-block align-middle max-w-full"
                             >
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-90 transition cursor-pointer ${loadCls}`}>
                                 {found.room}{cnt > 0 ? ` · ${cnt}/2` : ""}
                               </span>
-                            </RoomSlotAppointmentsLink>
+                            </RoomSlotToRoomBookingsLink>
                           </td>
                         );
                       })}

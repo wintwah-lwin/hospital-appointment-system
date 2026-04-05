@@ -44,13 +44,20 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
+  async function recoverWithToken(token) {
+    const data = await apiPost("/api/auth/recover-session", { token });
+    localStorage.setItem("ic_token", data.token);
+    setUser(data.user);
+    return data.user;
+  }
+
   function logout() {
     localStorage.removeItem("ic_token");
     setUser(null);
   }
 
   return (
-    <AuthCtx.Provider value={{ user, loading, login, registerPatient, logout, refreshMe }}>
+    <AuthCtx.Provider value={{ user, loading, login, registerPatient, recoverWithToken, logout, refreshMe }}>
       {children}
     </AuthCtx.Provider>
   );

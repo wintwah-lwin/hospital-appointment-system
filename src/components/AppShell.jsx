@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import Logo from "./Logo.jsx";
@@ -93,6 +93,11 @@ function NotificationBell() {
 export default function AppShell() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  if (user?.role === "patient" && user?.mustChangePassword && !location.pathname.startsWith("/patient/set-password")) {
+    return <Navigate to="/patient/set-password" replace />;
+  }
 
   if (user?.role === "patient" && user?.isBanned) {
     return (
@@ -148,8 +153,32 @@ export default function AppShell() {
               }`
             }
           >
-            {user?.role === "admin" ? "Overview" : "Home"}
+            {user?.role === "admin" ? "Overview" : user?.role === "staff" ? "Home" : "Home"}
           </NavLink>
+          {user?.role === "patient" && (
+            <>
+              <NavLink
+                to="/patient/bookings"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                My bookings
+              </NavLink>
+              <NavLink
+                to="/patient/profile"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                Profile
+              </NavLink>
+            </>
+          )}
           {user?.role === "admin" && (
             <>
               <NavLink
@@ -211,6 +240,26 @@ export default function AppShell() {
                 }
               >
                 Patients
+              </NavLink>
+              <NavLink
+                to="/admin/archived-bookings"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                Archived bookings
+              </NavLink>
+              <NavLink
+                to="/admin/password-resets"
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                    isActive ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`
+                }
+              >
+                Password resets
               </NavLink>
             </>
           )}

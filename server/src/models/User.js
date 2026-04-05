@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["patient", "staff", "admin"], default: "patient" },
     displayName: { type: String, default: "" },
     dob: { type: Date, default: null },
+    phone: { type: String, default: "" },
+    mustChangePassword: { type: Boolean, default: false },
     isBanned: { type: Boolean, default: false }
   },
   { timestamps: true }

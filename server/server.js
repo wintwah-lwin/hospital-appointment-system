@@ -27,7 +27,6 @@ try {
 // Ensure email index unique (all users use email)
 try {
   await User.collection.dropIndex("email_1").catch(() => {});
-  await User.collection.dropIndex("nric_1").catch(() => {});
   await User.collection.createIndex({ email: 1 }, { unique: true });
   console.log("Email index: unique");
 } catch (e) {

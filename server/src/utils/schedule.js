@@ -1,6 +1,7 @@
 import DoctorSchedule, { FIXED_SLOTS } from "../models/DoctorSchedule.js";
 import Appointment from "../models/Appointment.js";
 import Doctor from "../models/Doctor.js";
+import { activeAppointmentWhere } from "./appointmentQueries.js";
 import { BLOCKING_STATUSES, sessionPartWindow, PART1_WAIT_MIN, CONSULT_MIN, REST_BETWEEN_MIN, SESSION_PARTS } from "./availability.js";
 
 const FIXED_TIMES = ["09:00", "11:00", "14:00", "16:00", "17:00"];
@@ -101,11 +102,13 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
   const dayOfWeek = new Date(`${dateStr}T12:00:00${TZ_OFFSET}`).getUTCDay();
   const now = new Date();
 
-  const appointments = await Appointment.find({
-    status: { $in: BLOCKING_STATUSES },
-    startTime: { $lt: endOfDay },
-    endTime: { $gt: startOfDay }
-  }).lean();
+  const appointments = await Appointment.find(
+    activeAppointmentWhere({
+      status: { $in: BLOCKING_STATUSES },
+      startTime: { $lt: endOfDay },
+      endTime: { $gt: startOfDay }
+    })
+  ).lean();
 
   function segmentBooked(partStart, partEnd, docId) {
     return appointments.some(a =>

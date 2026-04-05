@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const loginEventSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
-    identifier: { type: String, index: true }, // email or NRIC for lookup
+    identifier: { type: String, index: true },
     displayName: { type: String, default: "" },
     role: { type: String, enum: ["patient", "staff", "admin"] },
     success: { type: Boolean, required: true },

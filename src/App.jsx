@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // pages
 import Landing from "./pages/public/Landing.jsx";
 import Login from "./pages/public/Login.jsx";
+import ForgotPassword from "./pages/public/ForgotPassword.jsx";
+import RecoverPassword from "./pages/public/RecoverPassword.jsx";
 import PatientDashboard from "./pages/patient/PatientDashboard.jsx";
 import PatientBooking from "./pages/patient/PatientBooking.jsx";
 import MyBookings from "./pages/patient/MyBookings.jsx";
@@ -18,6 +20,10 @@ import AdminPatientDetail from "./pages/admin/AdminPatientDetail.jsx";
 import AdminRoomBookings from "./pages/admin/AdminRoomBookings.jsx";
 import AdminAppointments from "./pages/admin/AdminAppointments.jsx";
 import AdminAppointmentDetail from "./pages/admin/AdminAppointmentDetail.jsx";
+import AdminArchivedBookings from "./pages/admin/AdminArchivedBookings.jsx";
+import AdminPasswordResets from "./pages/admin/AdminPasswordResets.jsx";
+import PatientProfile from "./pages/patient/PatientProfile.jsx";
+import SetNewPassword from "./pages/patient/SetNewPassword.jsx";
 import CheckInKiosk from "./pages/kiosk/CheckInKiosk.jsx";
 import AppShell from "./components/AppShell.jsx";
 import RequireAuth from "./auth/RequireAuth.jsx";
@@ -47,9 +53,13 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/recover-password" element={<RecoverPassword />} />
 
       <Route path="/patient" element={<RequireAuth roles={["patient"]}><AppShell /></RequireAuth>}>
         <Route index element={<PatientDashboard />} />
+        <Route path="set-password" element={<SetNewPassword />} />
+        <Route path="profile" element={<PatientProfile />} />
         <Route path="book" element={<PatientBooking />} />
         <Route path="bookings" element={<MyBookings />} />
         <Route path="bookings/:id/edit" element={<EditBooking />} />
@@ -72,6 +82,8 @@ export default function App() {
         <Route path="room-bookings" element={<AdminRoomBookings />} />
         <Route path="appointments" element={<AdminAppointments />} />
         <Route path="appointments/:id" element={<AdminAppointmentDetail />} />
+        <Route path="archived-bookings" element={<AdminArchivedBookings />} />
+        <Route path="password-resets" element={<AdminPasswordResets />} />
       </Route>
 
       <Route path="*" element={<WildcardRedirect />} />

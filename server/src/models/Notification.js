@@ -4,7 +4,21 @@ const notificationSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     role: { type: String, enum: ["admin", "staff", "patient"], required: true },
-    type: { type: String, enum: ["BOOKED", "APPROVED", "REJECTED", "EDITED", "CANCELLED", "DELETED", "REMINDER_12H", "REMINDER_3H"], required: true },
+    type: {
+      type: String,
+      enum: [
+        "BOOKED",
+        "APPROVED",
+        "REJECTED",
+        "EDITED",
+        "CANCELLED",
+        "DELETED",
+        "REMINDER_12H",
+        "REMINDER_3H",
+        "PASSWORD_RESET_REQUEST"
+      ],
+      required: true
+    },
     message: { type: String, required: true },
     appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Appointment", default: null },
     isRead: { type: Boolean, default: false }

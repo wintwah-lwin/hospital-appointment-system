@@ -1,6 +1,7 @@
 import Appointment from "../models/Appointment.js";
 import Bed from "../models/Bed.js";
 import Doctor from "../models/Doctor.js";
+import { activeAppointmentWhere } from "./appointmentQueries.js";
 
 /** @deprecated legacy 30-min block; use sessionPartWindow */
 export const SLOT_MINUTES = 30;
@@ -45,12 +46,12 @@ export async function isDoctorAvailable({ doctorId, startTime, endTime, ignoreAp
   const doc = await Doctor.findById(doctorId);
   if (!doc || doc.isActive === false) return { ok: false, reason: "Doctor not active" };
 
-  const query = {
+  const query = activeAppointmentWhere({
     doctorId,
     status: { $in: BLOCKING_STATUSES },
     startTime: { $lt: endTime },
     endTime: { $gt: startTime }
-  };
+  });
   if (ignoreAppointmentId) query._id = { $ne: ignoreAppointmentId };
 
   const bookedCount = await Appointment.countDocuments(query);
@@ -63,12 +64,16 @@ export async function findAvailableRoom({ startTime, endTime }) {
   const beds = await Bed.find({}).lean();
   if (!beds.length) return { ok: false, reason: "No rooms configured. Admin must add rooms first." };
 
-  const conflicts = await Appointment.find({
-    status: { $in: BLOCKING_STATUSES },
-    roomId: { $ne: null },
-    startTime: { $lt: endTime },
-    endTime: { $gt: startTime }
-  }).select("roomId").lean();
+  const conflicts = await Appointment.find(
+    activeAppointmentWhere({
+      status: { $in: BLOCKING_STATUSES },
+      roomId: { $ne: null },
+      startTime: { $lt: endTime },
+      endTime: { $gt: startTime }
+    })
+  )
+    .select("roomId")
+    .lean();
 
   const occupied = new Set(conflicts.map(c => String(c.roomId)));
   const freeBed = beds.find(b => !occupied.has(String(b._id)));

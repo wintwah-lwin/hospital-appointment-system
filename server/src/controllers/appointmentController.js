@@ -2,6 +2,7 @@ import Appointment from "../models/Appointment.js";
 import Doctor from "../models/Doctor.js";
 import Bed from "../models/Bed.js";
 import User from "../models/User.js";
+import { activeAppointmentWhere } from "../utils/appointmentQueries.js";
 import { addMinutes, validateBookingWindow, isDoctorAvailable, findAvailableRoom, BLOCKING_STATUSES, sessionPartWindow, CONSULT_MIN } from "../utils/availability.js";
 import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay, isAnchorInSchedule, anchorTimeLabelSG, slotToDate } from "../utils/schedule.js";
 import { notifyUser } from "../utils/notify.js";
@@ -87,12 +88,14 @@ export const createAppointment = async (req, res) => {
     return res.status(400).json({ message: "Referral required for specialist appointments" });
   }
 
-  const patientClash = await Appointment.findOne({
-    patientUserId: user.id,
-    status: { $in: BLOCKING_STATUSES },
-    startTime: { $lt: end },
-    endTime: { $gt: start }
-  }).lean();
+  const patientClash = await Appointment.findOne(
+    activeAppointmentWhere({
+      patientUserId: user.id,
+      status: { $in: BLOCKING_STATUSES },
+      startTime: { $lt: end },
+      endTime: { $gt: start }
+    })
+  ).lean();
   if (patientClash) {
     return res.status(409).json({
       message: "You already have an appointment that overlaps this time. Cancel or reschedule the other booking first."
@@ -162,17 +165,16 @@ export const createAppointment = async (req, res) => {
 };
 
 export const listMyAppointments = async (req, res) => {
-  const appts = await Appointment.find({
-    patientUserId: req.user.id,
-    status: { $ne: "Cancelled" }
-  })
+  const appts = await Appointment.find(
+    activeAppointmentWhere({ patientUserId: req.user.id })
+  )
     .sort({ startTime: -1 })
     .lean();
   res.json(appts);
 };
 
 export const listAllAppointments = async (req, res) => {
-  const appts = await Appointment.find({}).sort({ startTime: -1 }).lean();
+  const appts = await Appointment.find(activeAppointmentWhere({})).sort({ startTime: -1 }).lean();
   const userIds = [...new Set(appts.map(a => a.patientUserId).filter(Boolean))];
   const users = await User.find({ _id: { $in: userIds } }).select("_id displayName").lean();
   const userMap = Object.fromEntries(users.map(u => [String(u._id), u.displayName]));
@@ -180,6 +182,19 @@ export const listAllAppointments = async (req, res) => {
     const displayName = userMap[String(a.patientUserId)];
     const name = (displayName && String(displayName).trim()) ? String(displayName).trim() : "Patient";
     return { ...a, patientName: name };
+  });
+  res.json(enriched);
+};
+
+export const listArchivedAppointments = async (req, res) => {
+  const appts = await Appointment.find({ isDeleted: true }).sort({ deletedAt: -1, startTime: -1 }).lean();
+  const userIds = [...new Set(appts.map(a => a.patientUserId).filter(Boolean))];
+  const users = await User.find({ _id: { $in: userIds } }).select("_id displayName email").lean();
+  const userMap = Object.fromEntries(users.map(u => [String(u._id), u]));
+  const enriched = appts.map(a => {
+    const u = userMap[String(a.patientUserId)];
+    const name = (u?.displayName && String(u.displayName).trim()) ? String(u.displayName).trim() : (a.patientName || "Patient");
+    return { ...a, patientName: name, patientEmailResolved: u?.email || a.patientEmail };
   });
   res.json(enriched);
 };
@@ -195,9 +210,11 @@ export const listAppointmentsByRoomAndDate = async (req, res) => {
     return res.status(400).json({ message: "date must be YYYY-MM-DD" });
   }
 
-  const appts = await Appointment.find({
-    $or: [{ clinicRoomNumber: room }, { roomIdSnapshot: room }]
-  })
+  const appts = await Appointment.find(
+    activeAppointmentWhere({
+      $or: [{ clinicRoomNumber: room }, { roomIdSnapshot: room }]
+    })
+  )
     .sort({ startTime: 1 })
     .lean();
 
@@ -219,9 +236,9 @@ export const listAppointmentsByRoomAndDate = async (req, res) => {
 
 export const getQueueForDoctor = async (req, res) => {
   const { doctorId } = req.query;
-  const query = {
+  const query = activeAppointmentWhere({
     status: { $in: ["Checked-In", "Waiting", "In Consultation"] }
-  };
+  });
   if (doctorId) query.doctorId = doctorId;
 
   const appts = await Appointment.find(query)
@@ -232,7 +249,7 @@ export const getQueueForDoctor = async (req, res) => {
 
 export const cancelAppointment = async (req, res) => {
   const { id } = req.params;
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
 
   const isAdmin = req.user.role === "admin";
@@ -253,7 +270,7 @@ export const editAppointment = async (req, res) => {
   const { id } = req.params;
   const { category, doctorId, startTime, notes, queueCategory, slotAnchorTime, slotPart } = req.body || {};
 
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
 
   const isAdmin = req.user.role === "admin";
@@ -295,13 +312,15 @@ export const editAppointment = async (req, res) => {
   const windowCheck = await validateBookingWindow({ startTime: start });
   if (!windowCheck.ok) return res.status(400).json({ message: windowCheck.reason });
 
-  const patientClash = await Appointment.findOne({
-    patientUserId: appt.patientUserId,
-    status: { $in: BLOCKING_STATUSES },
-    startTime: { $lt: end },
-    endTime: { $gt: start },
-    _id: { $ne: appt._id }
-  }).lean();
+  const patientClash = await Appointment.findOne(
+    activeAppointmentWhere({
+      patientUserId: appt.patientUserId,
+      status: { $in: BLOCKING_STATUSES },
+      startTime: { $lt: end },
+      endTime: { $gt: start },
+      _id: { $ne: appt._id }
+    })
+  ).lean();
   if (patientClash) {
     return res.status(409).json({ message: "You already have another appointment that overlaps this time." });
   }
@@ -358,9 +377,10 @@ export const getAppointmentById = async (req, res) => {
   const { id } = req.params;
   const appt = await Appointment.findById(id).lean();
   if (!appt) return res.status(404).json({ message: "Not found" });
-  const isAdmin = req.user?.role === "admin" || req.user?.role === "staff";
+  const isStaffOrAdmin = req.user?.role === "admin" || req.user?.role === "staff";
   const isOwner = req.user && String(appt.patientUserId) === String(req.user.id);
-  if (req.user && !isAdmin && !isOwner) return res.status(403).json({ message: "Forbidden" });
+  if (req.user && !isStaffOrAdmin && !isOwner) return res.status(403).json({ message: "Forbidden" });
+  if (appt.isDeleted && req.user?.role !== "admin") return res.status(404).json({ message: "Not found" });
   res.json(appt);
 };
 
@@ -370,7 +390,7 @@ export const lookupAppointment = async (req, res) => {
   const { email, appointmentId } = req.body || {};
   if (!email && !appointmentId) return res.status(400).json({ message: "Email or Appointment ID required" });
 
-  const query = { status: "Booked" };
+  const query = activeAppointmentWhere({ status: "Booked" });
   if (appointmentId) query._id = appointmentId;
   if (email) query.patientEmail = String(email).trim().toLowerCase();
 
@@ -385,7 +405,7 @@ export const lookupAppointment = async (req, res) => {
 export const checkIn = async (req, res) => {
   const { id } = req.params;
   const { email } = req.body || {};
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
   if (appt.status !== "Booked") return res.status(400).json({ message: "Appointment is not in Booked status" });
 
@@ -420,11 +440,13 @@ export const checkIn = async (req, res) => {
   }
 
   const queuePrefix = appt.queueCategory === "Priority" ? "P" : appt.queueCategory === "Follow-up" ? "F" : "N";
-  const count = await Appointment.countDocuments({
-    status: { $in: ["Checked-In", "Waiting"] },
-    queueCategory: appt.queueCategory,
-    startTime: { $lte: appt.startTime }
-  });
+  const count = await Appointment.countDocuments(
+    activeAppointmentWhere({
+      status: { $in: ["Checked-In", "Waiting"] },
+      queueCategory: appt.queueCategory,
+      startTime: { $lte: appt.startTime }
+    })
+  );
   const queueNumber = `${queuePrefix}-${String(count + 1).padStart(3, "0")}`;
 
   appt.status = "Checked-In";
@@ -454,7 +476,7 @@ export const checkIn = async (req, res) => {
 
 export const callPatient = async (req, res) => {
   const { id } = req.params;
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
   if (appt.status !== "Checked-In" && appt.status !== "Waiting") {
     return res.status(400).json({ message: "Patient must be Checked-In or Waiting" });
@@ -470,7 +492,7 @@ export const callPatient = async (req, res) => {
 export const completeConsultation = async (req, res) => {
   const { id } = req.params;
   const { routeTo } = req.body || {};
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
   if (appt.status !== "In Consultation") return res.status(400).json({ message: "Appointment is not in consultation" });
 
@@ -484,7 +506,7 @@ export const completeConsultation = async (req, res) => {
 
 export const markNoShow = async (req, res) => {
   const { id } = req.params;
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
   if (appt.status !== "Checked-In") return res.status(400).json({ message: "Only Checked-In can be marked No Show" });
 
@@ -500,7 +522,7 @@ export const setStatusAdmin = async (req, res) => {
   const valid = ["Booked", "Checked-In", "Waiting", "In Consultation", "Completed", "Cancelled", "No Show"];
   if (!valid.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
 
   appt.status = status;
@@ -517,14 +539,19 @@ export const setStatusAdmin = async (req, res) => {
 
 export const completeAndDelete = async (req, res) => {
   const { id } = req.params;
-  const appt = await Appointment.findById(id);
+  const appt = await Appointment.findOne(activeAppointmentWhere({ _id: id }));
   if (!appt) return res.status(404).json({ message: "Not found" });
 
-  await Appointment.deleteOne({ _id: id });
+  appt.isDeleted = true;
+  appt.deletedAt = new Date();
+  appt.deletedByUserId = req.user.id;
+  await appt.save();
   res.json({ ok: true, deleted: true });
 };
 
 export const clearAllAppointments = async (req, res) => {
-  const result = await Appointment.deleteMany({});
-  res.json({ ok: true, deleted: result.deletedCount });
+  const result = await Appointment.updateMany(activeAppointmentWhere({}), {
+    $set: { isDeleted: true, deletedAt: new Date(), deletedByUserId: req.user.id }
+  });
+  res.json({ ok: true, deleted: result.modifiedCount });
 };

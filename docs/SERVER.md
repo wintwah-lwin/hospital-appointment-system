@@ -4,6 +4,7 @@ This folder is the HTTP API: Node.js, Express, and MongoDB. The React app calls 
 
 ## Main entry files
 
+
 | File | Purpose |
 |------|---------|
 | `server/server.js` | Connects to MongoDB, starts the HTTP server, runs scheduled jobs. |

@@ -1,4 +1,5 @@
 import Appointment from "../models/Appointment.js";
+import { activeAppointmentWhere } from "../utils/appointmentQueries.js";
 import { notifyUser } from "../utils/notify.js";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -26,17 +27,21 @@ export async function runReminderEmails() {
   const t3Start = now + 2.5 * MS_PER_HOUR;
   const t3End = now + 3.5 * MS_PER_HOUR;
 
-  const appts12 = await Appointment.find({
-    status: "Booked",
-    reminder12hSent: { $ne: true },
-    startTime: { $gte: new Date(t12Start), $lte: new Date(t12End) }
-  }).lean();
+  const appts12 = await Appointment.find(
+    activeAppointmentWhere({
+      status: "Booked",
+      reminder12hSent: { $ne: true },
+      startTime: { $gte: new Date(t12Start), $lte: new Date(t12End) }
+    })
+  ).lean();
 
-  const appts3 = await Appointment.find({
-    status: "Booked",
-    reminder3hSent: { $ne: true },
-    startTime: { $gte: new Date(t3Start), $lte: new Date(t3End) }
-  }).lean();
+  const appts3 = await Appointment.find(
+    activeAppointmentWhere({
+      status: "Booked",
+      reminder3hSent: { $ne: true },
+      startTime: { $gte: new Date(t3Start), $lte: new Date(t3End) }
+    })
+  ).lean();
 
   for (const a of appts12) {
     try {

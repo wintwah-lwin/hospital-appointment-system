@@ -66,7 +66,11 @@ const appointmentSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
 
     reminder12hSent: { type: Boolean, default: false },
-    reminder3hSent: { type: Boolean, default: false }
+    reminder3hSent: { type: Boolean, default: false },
+
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
+    deletedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
   },
   { timestamps: true }
 );
