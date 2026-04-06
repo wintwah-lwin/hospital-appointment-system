@@ -15,7 +15,7 @@ The application is a full-stack **hospital appointment & resource management** s
    - Database & API Integration  
    - Cloud Integration (e.g. MongoDB Atlas deployment)
 
-2. **Amie Phyo**  
+2. **Phyo Amie**  
    - Backend Development  
 
    - UI/UX Design (Figma)  
