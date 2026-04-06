@@ -106,19 +106,20 @@ export default function PatientDashboard() {
             <div key={id} className="p-4 rounded-xl border border-slate-200 bg-white flex flex-wrap items-center gap-3">
               <span className="font-medium text-slate-900 w-32">{d.name}</span>
               <div className="flex flex-wrap gap-2">
-                {d.slots.sort((a, b) => new Date(a.anchorTime || a.startTime) - new Date(b.anchorTime || b.startTime)).map(s => (
-                  <React.Fragment key={s.anchorTime || s.startTime}>
-                    {(s.parts || []).map(p => (
-                      <span
-                        key={`${s.anchorTime}-${p.part}`}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${p.available ? "bg-primary-600 text-white" : "bg-slate-200 text-slate-500"}`}
-                        title={p.label}
-                      >
-                        {s.slotLabel === "09:00" ? "9am" : s.slotLabel === "11:00" ? "11am" : s.slotLabel === "14:00" ? "2pm" : s.slotLabel === "16:00" ? "4pm" : s.slotLabel === "17:00" ? "5pm" : s.slotLabel} · {p.part === 1 ? "1st" : "2nd"}
-                      </span>
-                    ))}
-                  </React.Fragment>
-                ))}
+                {d.slots.sort((a, b) => new Date(a.anchorTime || a.startTime) - new Date(b.anchorTime || b.startTime)).map(s => {
+                  const p = (s.parts || [])[0];
+                  if (!p) return null;
+                  const label = s.slotLabel === "09:00" ? "9am" : s.slotLabel === "11:00" ? "11am" : s.slotLabel === "14:00" ? "2pm" : s.slotLabel === "16:00" ? "4pm" : s.slotLabel === "17:00" ? "5pm" : s.slotLabel;
+                  return (
+                    <span
+                      key={s.anchorTime || s.startTime}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${p.available ? "bg-primary-600 text-white" : "bg-slate-200 text-slate-500"}`}
+                      title={p.label}
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           ))}

@@ -1,6 +1,6 @@
 import DoctorSchedule, { FIXED_SLOTS } from "../models/DoctorSchedule.js";
 import Doctor from "../models/Doctor.js";
-import { getAvailableSlotsForDate, getDoctorSchedule } from "../utils/schedule.js";
+import { getAvailableSlotsForDate, getDoctorSchedule, singaporeDayOfWeekFromYmd, isClinicOpenYmd } from "../utils/schedule.js";
 import { checkDaysConflict } from "../utils/doctorConflict.js";
 
 export const getTimetable = async (req, res) => {
@@ -8,9 +8,16 @@ export const getTimetable = async (req, res) => {
   const dateStr = date || new Date().toISOString().slice(0, 10);
   const includePast = includePastSlots === "true" || includePastSlots === "1";
   const slots = await getAvailableSlotsForDate(dateStr, null, null, { includePastSlots: includePast });
-  const dayOfWeek = new Date(`${dateStr}T12:00:00+08:00`).getUTCDay();
+  const dayOfWeek = singaporeDayOfWeekFromYmd(dateStr);
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  res.json({ date: dateStr, dayOfWeek, dayName: dayNames[dayOfWeek], slots, fixedSlots: FIXED_SLOTS });
+  res.json({
+    date: dateStr,
+    dayOfWeek,
+    dayName: dayNames[dayOfWeek],
+    clinicOpen: isClinicOpenYmd(dateStr),
+    slots,
+    fixedSlots: FIXED_SLOTS
+  });
 };
 
 export const getDoctorSchedules = async (req, res) => {

@@ -2,11 +2,34 @@ import DoctorSchedule, { FIXED_SLOTS } from "../models/DoctorSchedule.js";
 import Appointment from "../models/Appointment.js";
 import Doctor from "../models/Doctor.js";
 import { activeAppointmentWhere } from "./appointmentQueries.js";
-import { BLOCKING_STATUSES, sessionPartWindow, PART1_WAIT_MIN, CONSULT_MIN, REST_BETWEEN_MIN, SESSION_PARTS } from "./availability.js";
+import { BLOCKING_STATUSES, sessionPartWindow, PART1_WAIT_MIN, CONSULT_MIN } from "./availability.js";
 
 const FIXED_TIMES = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 
 const TZ_OFFSET = "+08:00";
+const SG_TZ = "Asia/Singapore";
+
+/** YYYY-MM-DD interpreted as a clinic calendar day in Singapore → 0=Sun … 6=Sat */
+export function singaporeDayOfWeekFromYmd(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00${TZ_OFFSET}`);
+  const w = new Intl.DateTimeFormat("en-US", { timeZone: SG_TZ, weekday: "short" }).format(d);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[w] ?? 0;
+}
+
+/** Mon–Fri in Singapore for this calendar date */
+export function isClinicOpenYmd(dateStr) {
+  const dow = singaporeDayOfWeekFromYmd(dateStr);
+  return dow >= 1 && dow <= 5;
+}
+
+/** Consult / anchor instant must fall on Mon–Fri in Singapore */
+export function isClinicOpenInstantSG(isoInstant) {
+  const date = isoInstant instanceof Date ? isoInstant : new Date(isoInstant);
+  if (Number.isNaN(date.getTime())) return false;
+  const w = new Intl.DateTimeFormat("en-US", { timeZone: SG_TZ, weekday: "short" }).format(date);
+  return w !== "Sat" && w !== "Sun";
+}
 
 function parseSlotTime(s) {
   const [h, m] = (s || "09:00").split(":").map(Number);
@@ -87,6 +110,10 @@ export function isSlotInSchedule(schedule, _date, startTime) {
 }
 
 export async function getAvailableSlotsForDate(dateStr, doctorId = null, category = null, options = {}) {
+  if (!isClinicOpenYmd(dateStr)) {
+    return [];
+  }
+
   const { includePastSlots = false } = options;
   let doctors = doctorId
     ? await Doctor.find({ _id: doctorId }).lean()
@@ -99,7 +126,7 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
   const results = [];
   const startOfDay = new Date(`${dateStr}T00:00:00${TZ_OFFSET}`);
   const endOfDay = new Date(`${dateStr}T23:59:59.999${TZ_OFFSET}`);
-  const dayOfWeek = new Date(`${dateStr}T12:00:00${TZ_OFFSET}`).getUTCDay();
+  const dayOfWeek = singaporeDayOfWeekFromYmd(dateStr);
   const now = new Date();
 
   const appointments = await Appointment.find(
@@ -126,24 +153,19 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
     for (const s of slots) {
       const anchor = slotToDate(dateStr, s.time);
       const partsOut = [];
-      let anyFuture = false;
-      for (const part of [1, 2]) {
-        const { start, end } = sessionPartWindow(anchor, part);
-        if (!includePastSlots && end <= now) continue;
-        anyFuture = true;
-        const booked = segmentBooked(start, end, doc._id);
-        partsOut.push({
-          part,
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          available: !booked,
-          label:
-            part === 1
-              ? `1st (${PART1_WAIT_MIN}m wait + ${CONSULT_MIN}m)`
-              : `2nd (+${REST_BETWEEN_MIN}m break + ${CONSULT_MIN}m)`
-        });
+      const part = 1;
+      const { start, end } = sessionPartWindow(anchor, part);
+      if (!includePastSlots && end <= now) {
+        continue;
       }
-      if (!anyFuture) continue;
+      const booked = segmentBooked(start, end, doc._id);
+      partsOut.push({
+        part,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        available: !booked,
+        label: `${PART1_WAIT_MIN}m wait + ${CONSULT_MIN}m consult`
+      });
       results.push({
         doctorId: String(doc._id),
         doctorName: doc.name,
@@ -151,7 +173,7 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
         slotLabel: s.time,
         slotRoom: s.room,
         anchorTime: anchor.toISOString(),
-        capacity: SESSION_PARTS,
+        capacity: 1,
         parts: partsOut
       });
     }

@@ -123,7 +123,6 @@ export default function AdminAppointments() {
                     <td className="px-4 py-3 text-zinc-600">{a.clinicRoomNumber || a.roomIdSnapshot || "—"}</td>
                     <td className="px-4 py-3 text-zinc-600">
                       {band}
-                      {a.slotPart ? ` · ${a.slotPart === 1 ? "1st" : "2nd"}` : ""}
                     </td>
                     <td className="px-4 py-3 text-zinc-600">{a.category || "—"}</td>
                     <td className="px-4 py-3">

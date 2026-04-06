@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../../api/client.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { Link } from "react-router-dom";
+import { isWeekendYmdSG, nextWeekdayYmdSG } from "../../utils/clinicHours.js";
 
 const SPECIALTIES = ["All doctors", "General", "Cardiology", "Neurology", "Orthopedics"];
 const NEEDS_REFERRAL = ["Cardiology", "Neurology", "Orthopedics"];
@@ -12,10 +13,9 @@ export default function PatientBooking() {
   const [doctors, setDoctors] = useState([]);
   const [timetableSlots, setTimetableSlots] = useState([]);
   const [category, setCategory] = useState("All doctors");
-  const [doctorId, setDoctorId] = useState("");
-  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [bookingDate, setBookingDate] = useState(() => nextWeekdayYmdSG());
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [hasReferral, setHasReferral] = useState(false);
+  const [referralType, setReferralType] = useState("");
   const [notes, setNotes] = useState("");
 
   const [created, setCreated] = useState(null);
@@ -38,7 +38,12 @@ export default function PatientBooking() {
     try {
       const data = await apiGet(`/api/schedule/timetable?date=${bookingDate}&includePastSlots=false`);
       setTimetableSlots(data.slots || []);
-      setTimetableMeta({ dayName: data.dayName, date: data.date });
+      const dateKey = data.date || bookingDate;
+      setTimetableMeta({
+        dayName: data.dayName,
+        date: dateKey,
+        clinicOpen: typeof data.clinicOpen === "boolean" ? data.clinicOpen : !isWeekendYmdSG(dateKey)
+      });
     } catch (e) {
       setTimetableSlots([]);
       setTimetableMeta(null);
@@ -63,24 +68,33 @@ export default function PatientBooking() {
   }, [timetableSlots, filteredDoctors]);
 
   useEffect(() => {
-    if (doctorId && !filteredDoctors.some(d => d._id === doctorId)) setDoctorId("");
-  }, [category, filteredDoctors, doctorId]);
+    setSelectedSlot(null);
+  }, [category, bookingDate]);
 
   useEffect(() => {
-    setSelectedSlot(null);
-  }, [doctorId, bookingDate]);
+    setReferralType("");
+  }, [category, selectedSlot]);
 
+  const effectiveCategory = useMemo(() => {
+    if (category !== "All doctors") return category;
+    const doc = selectedSlot && doctors.find(d => String(d._id) === String(selectedSlot.doctorId));
+    return (doc?.specialty || "General").trim();
+  }, [category, selectedSlot, doctors]);
 
-  const referralRequired = category !== "All doctors" && NEEDS_REFERRAL.includes(category);
+  const referralRequired = NEEDS_REFERRAL.includes(effectiveCategory);
 
   function handleConfirmClick(e) {
     e.preventDefault();
-    if (referralRequired && !hasReferral) {
-      setError("Referral required for specialist appointments");
+    if (isWeekendYmdSG(bookingDate)) {
+      setError("The clinic is closed on weekends. Please choose Monday–Friday.");
+      return;
+    }
+    if (referralRequired && !referralType) {
+      setError("Please select your referral type");
       return;
     }
     if (!selectedSlot) {
-      setError("Please select an available session (1st or 2nd) from the timetable");
+      setError("Choose a time on the timetable");
       return;
     }
     setError("");
@@ -102,14 +116,13 @@ export default function PatientBooking() {
         slotAnchorTime: selectedSlot.anchorTime,
         slotPart: selectedSlot.slotPart,
         queueCategory: "New",
-        hasReferral: (cat && NEEDS_REFERRAL.includes(cat)) ? hasReferral : undefined,
+        hasReferral: NEEDS_REFERRAL.includes(cat) ? !!referralType : undefined,
         notes
       };
       const res = await apiPost("/api/appointments", payload);
       setCreated(res);
       setNotes("");
       setSelectedSlot(null);
-      setDoctorId("");
       loadTimetable();
     } catch (e) {
       setError(String(e?.message || e));
@@ -118,7 +131,7 @@ export default function PatientBooking() {
     }
   }
 
-  const minDate = new Date().toISOString().slice(0, 10);
+  const minDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(new Date());
   const maxDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const FIXED = [{ value: "09:00", label: "9am" }, { value: "11:00", label: "11am" }, { value: "14:00", label: "2pm" }, { value: "16:00", label: "4pm" }, { value: "17:00", label: "5pm" }];
@@ -136,8 +149,7 @@ export default function PatientBooking() {
   const confirmSummary = selectedSlot && doc ? {
     doctor: doc.name,
     date: new Date(selectedSlot.startTime).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
-    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" }),
-    session: selectedSlot.slotPart === 1 ? "1st session (after short wait)" : "2nd session"
+    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
   } : null;
 
   return (
@@ -164,12 +176,8 @@ export default function PatientBooking() {
                   <span className="font-medium text-slate-900">{confirmSummary.date}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Consult starts</span>
+                  <span className="text-slate-500">Time</span>
                   <span className="font-medium text-slate-900">{confirmSummary.time}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Session</span>
-                  <span className="font-medium text-slate-900">{confirmSummary.session}</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -252,17 +260,27 @@ export default function PatientBooking() {
       <section>
         {timetableMeta && (
           <p className="text-sm text-slate-600 mb-2">
-            Timetable for {timetableMeta.dayName}, {bookingDate ? new Date(bookingDate + "T12:00:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""}
+            Timetable for {timetableMeta.dayName}, {bookingDate ? new Date(bookingDate + "T12:00:00+08:00").toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : ""}
           </p>
         )}
-        <p className="text-xs text-slate-600 mb-3 max-w-3xl">
-          Each time band (e.g. 9am) has two sessions: <strong>1st</strong> (short wait then consult) and <strong>2nd</strong> (after a short break). Choose a green session; grey is already booked.
-        </p>
+        {timetableMeta && timetableMeta.clinicOpen === false && (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            The clinic is closed on weekends. Choose a weekday to see available times.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm">
             {SPECIALTIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input type="date" min={minDate} max={maxDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" title="Cannot book past dates" />
+          <input
+            type="date"
+            min={minDate}
+            max={maxDate}
+            value={bookingDate}
+            onChange={(e) => setBookingDate(e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            title="Weekdays only (Mon–Fri, Singapore)"
+          />
         </div>
         <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
           <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(88px,1fr))] text-sm min-w-[520px]">
@@ -278,39 +296,39 @@ export default function PatientBooking() {
                   return (
                     <div key={f.value} className="px-1.5 py-2 border-t border-slate-100">
                       {s?.parts?.length ? (
-                        <div className="flex flex-col gap-1">
-                          {s.parts.map(p => {
-                            const pick = {
-                              doctorId: s.doctorId,
-                              doctorName: s.doctorName,
-                              anchorTime: s.anchorTime,
-                              slotPart: p.part,
-                              startTime: p.startTime,
-                              slotLabel: s.slotLabel
-                            };
-                            const isSelected = selectedSlot
-                              && selectedSlot.doctorId === pick.doctorId
-                              && selectedSlot.anchorTime === pick.anchorTime
-                              && selectedSlot.slotPart === pick.slotPart;
-                            return (
-                              <button
-                                key={p.part}
-                                type="button"
-                                onClick={() => {
-                                  if (!p.available) return;
-                                  setSelectedSlot(pick);
-                                  setDoctorId(s.doctorId);
-                                }}
-                                disabled={!p.available}
-                                className={`w-full py-1 rounded text-[11px] font-semibold leading-tight ${p.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
-                                title={p.available ? p.label : "Booked"}
-                              >
-                                {p.part === 1 ? "1st" : "2nd"}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : <span className="text-slate-300">—</span>}
+                        (() => {
+                          const p = s.parts[0];
+                          const pick = {
+                            doctorId: s.doctorId,
+                            doctorName: s.doctorName,
+                            anchorTime: s.anchorTime,
+                            slotPart: p.part,
+                            startTime: p.startTime,
+                            slotLabel: s.slotLabel
+                          };
+                          const isSelected =
+                            selectedSlot
+                            && selectedSlot.doctorId === pick.doctorId
+                            && selectedSlot.anchorTime === pick.anchorTime
+                            && selectedSlot.slotPart === pick.slotPart;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!p.available) return;
+                                setSelectedSlot(pick);
+                              }}
+                              disabled={!p.available}
+                              className={`w-full py-1.5 rounded text-[11px] font-semibold leading-tight ${p.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
+                              title={p.available ? p.label : "Booked"}
+                            >
+                              Book
+                            </button>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </div>
                   );
                 })}
@@ -318,42 +336,46 @@ export default function PatientBooking() {
             ))}
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-2">Click <strong>1st</strong> or <strong>2nd</strong> on a teal button to select that session.</p>
       </section>
 
       {/* Step 2: Form */}
       <section>
         <form onSubmit={handleConfirmClick} className="space-y-4 max-w-2xl">
           {referralRequired && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={hasReferral} onChange={(e) => setHasReferral(e.target.checked)} className="rounded border-slate-300 text-primary-600" />
-              <span>I have a referral for this specialist</span>
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-600 mb-1">Referral</span>
+              <select
+                value={referralType}
+                onChange={(e) => setReferralType(e.target.value)}
+                className="w-full max-w-md px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+              >
+                <option value="">Select referral type</option>
+                <option value="gp">GP / family physician referral</option>
+                <option value="specialist">Referral from another specialist</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-1">A referral is required for this specialty.</p>
             </label>
           )}
-          <div className="flex flex-wrap gap-4 items-end">
-            <label className="flex-1 min-w-[140px]">
-              <span className="block text-xs font-medium text-slate-600 mb-1">Doctor</span>
-              <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-                <option value="">Select doctor</option>
-                {filteredDoctors.map(d => <option key={d._id} value={d._id}>{d.name}{d.specialty ? ` (${d.specialty})` : ""}</option>)}
-              </select>
-            </label>
-            <div className="min-w-[120px]">
-              {selectedSlot ? (
-                <span className="inline-block px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium">
-                  {FIXED.find(x => x.value === selectedSlot.slotLabel)?.label || selectedSlot.slotLabel} · {selectedSlot.slotPart === 1 ? "1st" : "2nd"} · {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })} — {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
-                </span>
-              ) : (
-                <span className="text-slate-500 text-sm">Select a session above</span>
-              )}
-            </div>
+          <div>
+            <span className="block text-xs font-medium text-slate-600 mb-1">Selection</span>
+            {selectedSlot ? (
+              <span className="inline-block px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium">
+                {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
+                {" · "}
+                {FIXED.find(x => x.value === selectedSlot.slotLabel)?.label || selectedSlot.slotLabel}
+                {" · "}
+                {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })}
+              </span>
+            ) : (
+              <span className="text-slate-500 text-sm">—</span>
+            )}
           </div>
           <label>
             <span className="block text-xs font-medium text-slate-600 mb-1">Notes (optional)</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
           </label>
           {error && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
-          <button type="submit" disabled={!selectedSlot || submitting} className="px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button type="submit" disabled={!selectedSlot || submitting || isWeekendYmdSG(bookingDate)} className="px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Confirm booking
           </button>
         </form>

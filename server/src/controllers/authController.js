@@ -18,6 +18,11 @@ function signToken(user) {
   );
 }
 
+function auditEligibleRole(user) {
+  if (!user?.role) return true;
+  return user.role === "patient" || user.role === "admin";
+}
+
 async function logLoginAndAssess({ user, identifier, success, req }) {
   const { ip, userAgent, deviceHash } = getRequestContext(req);
   const risk = await assessLoginRisk({
@@ -27,26 +32,30 @@ async function logLoginAndAssess({ user, identifier, success, req }) {
     success
   });
 
-  const event = await LoginEvent.create({
-    userId: user?._id,
-    identifier,
-    displayName: user?.displayName || "",
-    role: user?.role,
-    success,
-    ip,
-    userAgent,
-    deviceHash,
-    riskScore: risk.score,
-    riskReasons: risk.reasons,
-    action: risk.action
-  });
+  const recordAudit = auditEligibleRole(user);
 
-  if (risk.score >= 50) {
+  if (recordAudit) {
+    await LoginEvent.create({
+      userId: user?._id,
+      identifier,
+      displayName: user?.displayName || "",
+      role: user?.role || undefined,
+      success,
+      ip,
+      userAgent,
+      deviceHash,
+      riskScore: risk.score,
+      riskReasons: risk.reasons,
+      action: risk.action
+    });
+  }
+
+  if (recordAudit && risk.score >= 50) {
     await SecurityAlert.create({
       userId: user?._id,
       identifier,
       displayName: user?.displayName || "",
-      role: user?.role,
+      role: user?.role || "",
       alertType: risk.reasons.includes("Too many failed login attempts") ? "blocked_login" : "suspicious_login",
       severity: risk.score >= 70 ? "high" : "medium",
       message: risk.reasons.join("; "),

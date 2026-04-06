@@ -80,7 +80,6 @@ export default function AdminAppointmentDetail() {
           <Row label="End">{a.endTime ? new Date(a.endTime).toLocaleString("en-SG", { timeZone: TZ_SG, dateStyle: "full", timeStyle: "short" }) : "—"}</Row>
           <Row label="Timetable band">
             {band}
-            {a.slotPart ? ` · ${a.slotPart === 1 ? "1st session" : "2nd session"}` : ""}
           </Row>
           <Row label="Referral">{a.referralRequired ? (a.hasReferral ? "Has referral" : "Required — not recorded") : "Not required"}</Row>
           <Row label="Booking source">{a.bookingSource || "—"}</Row>

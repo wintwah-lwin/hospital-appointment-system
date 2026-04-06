@@ -4,7 +4,7 @@ import Bed from "../models/Bed.js";
 import User from "../models/User.js";
 import { activeAppointmentWhere } from "../utils/appointmentQueries.js";
 import { addMinutes, validateBookingWindow, isDoctorAvailable, findAvailableRoom, BLOCKING_STATUSES, sessionPartWindow, CONSULT_MIN } from "../utils/availability.js";
-import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay, isAnchorInSchedule, anchorTimeLabelSG, slotToDate } from "../utils/schedule.js";
+import { getDoctorSchedule, isSlotInSchedule, getSlotsForDay, isAnchorInSchedule, anchorTimeLabelSG, slotToDate, isClinicOpenInstantSG } from "../utils/schedule.js";
 import { notifyUser } from "../utils/notify.js";
 
 const SPECIALIST_CATEGORIES = ["Cardiology", "Neurology", "Orthopedics"];
@@ -311,6 +311,10 @@ export const editAppointment = async (req, res) => {
 
   const windowCheck = await validateBookingWindow({ startTime: start });
   if (!windowCheck.ok) return res.status(400).json({ message: windowCheck.reason });
+
+  if (!isClinicOpenInstantSG(start)) {
+    return res.status(400).json({ message: "Appointments are only available Monday–Friday." });
+  }
 
   const patientClash = await Appointment.findOne(
     activeAppointmentWhere({

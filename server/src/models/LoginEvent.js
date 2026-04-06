@@ -5,7 +5,8 @@ const loginEventSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     identifier: { type: String, index: true },
     displayName: { type: String, default: "" },
-    role: { type: String, enum: ["patient", "staff", "admin"] },
+    /** Audit scope: patient + admin only (staff logins are not stored). */
+    role: { type: String, enum: ["patient", "admin"] },
     success: { type: Boolean, required: true },
     ip: { type: String, default: "" },
     userAgent: { type: String, default: "" },

@@ -34,6 +34,7 @@ export default function AdminSecurity() {
   }, []);
 
   const filteredEvents = events.filter((e) => {
+    if (e.role === "staff") return false;
     if (filter.role && e.role !== filter.role) return false;
     if (filter.success !== "" && String(e.success) !== filter.success) return false;
     return true;
@@ -127,7 +128,6 @@ export default function AdminSecurity() {
             >
               <option value="">All roles</option>
               <option value="patient">Patient</option>
-              <option value="staff">Staff</option>
               <option value="admin">Admin</option>
             </select>
             <select

@@ -4,12 +4,10 @@ import { apiGet } from "../../api/client.js";
 
 const SLOT_ORDER = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 const SLOT_LABEL = { "09:00": "9am", "11:00": "11am", "14:00": "2pm", "16:00": "4pm", "17:00": "5pm" };
-/** Fallback if timetable row has no capacity field (two sessions per anchor). */
-const CAPACITY_FALLBACK = 2;
+const CAPACITY_FALLBACK = 1;
 const TZ = "Asia/Singapore";
 const PART1_WAIT_MIN = 5;
 const CONSULT_MIN = 25;
-const REST_BETWEEN_MIN = 5;
 
 function addMinutes(d, m) {
   return new Date(d.getTime() + m * 60 * 1000);
@@ -20,7 +18,6 @@ function slotToDateAnchor(dateStr, hhmm) {
   return new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:00+08:00`);
 }
 
-/** Map appointment to timetable anchor key (09:00, 11:00, …) for the given calendar date. */
 function anchorSlotLabelForAppointment(a, dateYmd) {
   if (a.slotAnchorTime) {
     return new Date(a.slotAnchorTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
@@ -30,18 +27,16 @@ function anchorSlotLabelForAppointment(a, dateYmd) {
     const anchor = slotToDateAnchor(dateYmd, ft);
     const p1s = addMinutes(anchor, PART1_WAIT_MIN);
     const p1e = addMinutes(p1s, CONSULT_MIN);
-    const p2s = addMinutes(p1e, REST_BETWEEN_MIN);
-    const p2e = addMinutes(p2s, CONSULT_MIN);
     if (t >= p1s && t < p1e) return ft;
-    if (t >= p2s && t < p2e) return ft;
   }
   return new Date(a.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
 }
 
 function toDatePart(dateLike) {
   const d = new Date(dateLike);
-  return d.toLocaleDateString("en-CA", { timeZone: TZ }); // "YYYY-MM-DD"
+  return d.toLocaleDateString("en-CA", { timeZone: TZ });
 }
+
 function tokenDisplay(queueNumber) {
   if (!queueNumber) return "-";
   const m = String(queueNumber).match(/(\d+)$/);
@@ -167,7 +162,7 @@ export default function AdminBookingLoad() {
             <option value="all">All times</option>
             {SLOT_ORDER.map(t => <option key={t} value={t}>{SLOT_LABEL[t]}</option>)}
           </select>
-          <button onClick={load} className="px-4 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition text-sm font-medium">Refresh</button>
+          <button type="button" onClick={load} className="px-4 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition text-sm font-medium">Refresh</button>
           <Link to="/admin" className="px-4 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition text-sm font-medium text-zinc-700">Back</Link>
         </div>
       </div>
@@ -184,30 +179,21 @@ export default function AdminBookingLoad() {
               <th className="text-left font-medium px-4 py-3">Booked</th>
               <th className="text-left font-medium px-4 py-3">Waiting (Checked-In)</th>
               <th className="text-left font-medium px-4 py-3">Inside room</th>
-              <th className="text-left font-medium px-4 py-3">Load</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-zinc-500">No slot data for the selected filters.</td></tr>
-            ) : rows.map((r) => {
-              const high = r.totalSlots > 0 && r.booked >= r.totalSlots;
-              return (
-                <tr key={`${r.doctorId}-${r.time}`} className="hover:bg-zinc-50/50">
-                  <td className="px-4 py-3 font-medium text-zinc-900">{r.doctorName}</td>
-                  <td className="px-4 py-3 text-zinc-600">{SLOT_LABEL[r.time] || r.time}</td>
-                  <td className="px-4 py-3 text-zinc-600">{r.totalSlots}</td>
-                  <td className="px-4 py-3 text-zinc-600">{r.booked}</td>
-                  <td className="px-4 py-3 text-zinc-600">{r.checkedIn}</td>
-                  <td className="px-4 py-3 text-zinc-600">{r.inside}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${high ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}>
-                      {high ? "High" : "Normal"}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+              <tr><td colSpan={6} className="px-4 py-6 text-zinc-500">No slot data for the selected filters.</td></tr>
+            ) : rows.map((r) => (
+              <tr key={`${r.doctorId}-${r.time}`} className="hover:bg-zinc-50/50">
+                <td className="px-4 py-3 font-medium text-zinc-900">{r.doctorName}</td>
+                <td className="px-4 py-3 text-zinc-600">{SLOT_LABEL[r.time] || r.time}</td>
+                <td className="px-4 py-3 text-zinc-600">{r.totalSlots}</td>
+                <td className="px-4 py-3 text-zinc-600">{r.booked}</td>
+                <td className="px-4 py-3 text-zinc-600">{r.checkedIn}</td>
+                <td className="px-4 py-3 text-zinc-600">{r.inside}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -219,7 +205,7 @@ export default function AdminBookingLoad() {
             <tr>
               <th className="text-left font-medium px-4 py-3">Patient</th>
               <th className="text-left font-medium px-4 py-3">Doctor</th>
-              <th className="text-left font-medium px-4 py-3">Time / session</th>
+              <th className="text-left font-medium px-4 py-3">Time</th>
               <th className="text-left font-medium px-4 py-3">Room</th>
               <th className="text-left font-medium px-4 py-3">Token</th>
               <th className="text-left font-medium px-4 py-3">Status</th>
@@ -234,7 +220,6 @@ export default function AdminBookingLoad() {
                 <td className="px-4 py-3 text-zinc-600">{a.doctorNameSnapshot || "-"}</td>
                 <td className="px-4 py-3 text-zinc-600">
                   {new Date(a.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
-                  {a.slotPart ? <span className="text-zinc-500"> · {a.slotPart === 1 ? "1st" : "2nd"}</span> : null}
                 </td>
                 <td className="px-4 py-3 text-zinc-600">{a.clinicRoomNumber || a.roomIdSnapshot || "-"}</td>
                 <td className="px-4 py-3 font-mono font-medium">{tokenDisplay(a.queueNumber)}</td>

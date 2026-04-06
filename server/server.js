@@ -6,9 +6,21 @@ import User from "./src/models/User.js";
 import Bed from "./src/models/Bed.js";
 import Doctor from "./src/models/Doctor.js";
 import DoctorSchedule from "./src/models/DoctorSchedule.js";
+import LoginEvent from "./src/models/LoginEvent.js";
+import SecurityAlert from "./src/models/SecurityAlert.js";
 import { hashPassword } from "./src/utils/password.js";
 
 await connectDB();
+
+// Security audit: only patient + admin (remove legacy staff rows)
+try {
+  const le = await LoginEvent.deleteMany({ role: "staff" });
+  if (le.deletedCount) console.log("Security audit: removed staff login events:", le.deletedCount);
+  const sa = await SecurityAlert.deleteMany({ role: "staff" });
+  if (sa.deletedCount) console.log("Security audit: removed staff alerts:", sa.deletedCount);
+} catch (e) {
+  console.warn("Security audit cleanup:", e.message);
+}
 
 // If DB was on roomId for a while, copy back to bedId
 try {

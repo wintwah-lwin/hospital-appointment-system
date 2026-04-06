@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../api/client.js";
 import { Link } from "react-router-dom";
 import { anchorSlotLabelForAppointment } from "./appointmentUtils.js";
@@ -16,6 +16,21 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function DaySlotEditor({ days, onChange, rooms }) {
   const allRooms = rooms?.length ? rooms : ["Room-01", "Room-02", "Room-03", "Room-04", "Room-05"];
   const roomOptions = ["Room-00", ...allRooms];
+
+  const enabledDows = useMemo(
+    () => [...(days || []).map(d => d.dayOfWeek)].sort((a, b) => a - b),
+    [days]
+  );
+  const [slotPanelDow, setSlotPanelDow] = useState(null);
+
+  useEffect(() => {
+    const dows = [...(days || []).map(d => d.dayOfWeek)].sort((a, b) => a - b);
+    if (!dows.length) {
+      setSlotPanelDow(null);
+      return;
+    }
+    setSlotPanelDow(prev => (prev != null && dows.includes(prev) ? prev : dows[0]));
+  }, [days]);
 
   function toggleDay(dow) {
     const existing = (days || []).find(d => d.dayOfWeek === dow);
@@ -49,17 +64,37 @@ function DaySlotEditor({ days, onChange, rooms }) {
           );
         })}
       </div>
-      {(days || []).map(dayConfig => (
-        <div key={dayConfig.dayOfWeek} className="pl-4 border-l-2 border-zinc-200 space-y-2">
-          <div className="text-sm font-medium text-zinc-700">{DAY_NAMES[dayConfig.dayOfWeek]} slots</div>
-          <div className="flex flex-wrap gap-3">
-            {FIXED_SLOTS.map(f => {
-              const found = (dayConfig.slots || []).find(x => x.time === f.time);
-              const enabled = !!found;
-              const room = found?.room || allRooms[0];
-              return (
-                <div key={f.time} className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+      {enabledDows.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Edit slots for</div>
+          <div className="flex flex-wrap gap-1.5">
+            {enabledDows.map(dow => (
+              <button
+                key={dow}
+                type="button"
+                onClick={() => setSlotPanelDow(dow)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${slotPanelDow === dow ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"}`}
+              >
+                {DAY_NAMES[dow]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(days || [])
+        .filter(dayConfig => dayConfig.dayOfWeek === slotPanelDow)
+        .map(dayConfig => (
+          <div key={dayConfig.dayOfWeek} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-3 space-y-3">
+            <div className="text-sm font-medium text-zinc-800">{DAY_NAMES[dayConfig.dayOfWeek]} · rooms per slot</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FIXED_SLOTS.map(f => {
+                const found = (dayConfig.slots || []).find(x => x.time === f.time);
+                const enabled = !!found;
+                const room = found?.room || allRooms[0];
+                return (
+                  <div key={f.time} className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-zinc-100 px-2 py-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm shrink-0">
                     <input
                       type="checkbox"
                       checked={enabled}
@@ -73,7 +108,7 @@ function DaySlotEditor({ days, onChange, rooms }) {
                       }}
                       className="rounded border-zinc-300"
                     />
-                    {f.label}
+                    <span className="font-medium text-zinc-800 w-10">{f.label}</span>
                   </label>
                   <select
                     value={room}
@@ -83,7 +118,7 @@ function DaySlotEditor({ days, onChange, rooms }) {
                       const slots = (dayConfig.slots || []).map(s => s.time === f.time ? { ...s, room: e.target.value } : s);
                       updateDaySlots(dayConfig.dayOfWeek, slots);
                     }}
-                    className={`px-2 py-1.5 rounded-lg border border-zinc-200 text-sm min-w-[100px] ${!enabled ? "opacity-50 bg-zinc-50" : ""}`}
+                    className={`flex-1 min-w-[120px] px-2 py-1.5 rounded-lg border border-zinc-200 text-sm ${!enabled ? "opacity-50 bg-zinc-50" : "bg-white"}`}
                   >
                     {roomOptions.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -314,35 +349,46 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {error && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
+      {error && !editingDoctor && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
 
       {editingDoctor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-zinc-900 mb-4">Edit Doctor</h3>
-            {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
-            <form onSubmit={updateDoctor} className="space-y-4">
-              <label className="block">
-                <span className="text-sm text-zinc-600 font-medium">Name</span>
-                <input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" required />
-              </label>
-              <label className="block">
-                <span className="text-sm text-zinc-600 font-medium">Specialty</span>
-                <select value={editSpecialty} onChange={(e) => setEditSpecialty(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent bg-white">
-                  <option value="">Select specialty…</option>
-                  {editSpecialty && !DOCTOR_SPECIALTY_OPTIONS.includes(editSpecialty) ? (
-                    <option value={editSpecialty}>{editSpecialty} (current)</option>
-                  ) : null}
-                  {DOCTOR_SPECIALTY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm text-zinc-600 font-medium">Working days & slots</span>
-                <div className="mt-1"><DaySlotEditor days={editDays} onChange={setEditDays} rooms={rooms} /></div>
-              </label>
-              <div className="flex gap-3 pt-2">
-                <button type="submit" className="px-4 py-2 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 transition">Save</button>
-                <button type="button" onClick={() => { setEditingDoctor(null); setError(""); }} className="px-4 py-2 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition">Cancel</button>
+        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-4 bg-black/50">
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-xl max-h-[92vh] sm:max-h-[min(90vh,880px)] flex flex-col"
+            role="dialog"
+            aria-labelledby="edit-doctor-title"
+          >
+            <div className="shrink-0 px-5 pt-5 pb-3 border-b border-zinc-100">
+              <h3 id="edit-doctor-title" className="text-lg font-semibold text-zinc-900">Edit doctor</h3>
+              <p className="text-xs text-zinc-500 mt-1">Turn days on/off above, then pick a day to set rooms for each time band.</p>
+            </div>
+            <form onSubmit={updateDoctor} className="flex flex-col flex-1 min-h-0">
+              {error && (
+                <div className="shrink-0 mx-5 mt-3 p-3 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>
+              )}
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+                <label className="block">
+                  <span className="text-sm text-zinc-600 font-medium">Name</span>
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent" required />
+                </label>
+                <label className="block">
+                  <span className="text-sm text-zinc-600 font-medium">Specialty</span>
+                  <select value={editSpecialty} onChange={(e) => setEditSpecialty(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-xl border border-zinc-200 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent bg-white">
+                    <option value="">Select specialty…</option>
+                    {editSpecialty && !DOCTOR_SPECIALTY_OPTIONS.includes(editSpecialty) ? (
+                      <option value={editSpecialty}>{editSpecialty} (current)</option>
+                    ) : null}
+                    {DOCTOR_SPECIALTY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <div>
+                  <span className="text-sm text-zinc-600 font-medium">Working days &amp; slots</span>
+                  <div className="mt-1"><DaySlotEditor days={editDays} onChange={setEditDays} rooms={rooms} /></div>
+                </div>
+              </div>
+              <div className="shrink-0 flex gap-3 px-5 py-4 border-t border-zinc-100 bg-white rounded-b-2xl">
+                <button type="submit" className="px-4 py-2.5 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 transition">Save</button>
+                <button type="button" onClick={() => { setEditingDoctor(null); setError(""); }} className="px-4 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition">Cancel</button>
               </div>
             </form>
           </div>
@@ -458,7 +504,7 @@ export default function AdminDashboard() {
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900 mb-1">Doctor Timetable</h2>
-          <p className="text-sm text-zinc-500 mb-4">Select a day or date to see who works. Green = both sessions free · Amber = one booked · Red = both booked (two patients per time band).</p>
+          <p className="text-sm text-zinc-500 mb-4">Select a day or date. Green = free · Red = booked.</p>
           <div className="flex flex-wrap gap-3 items-center mb-4">
             <div>
               <span className="text-sm font-medium text-zinc-600 mr-2">Day:</span>
@@ -544,10 +590,7 @@ export default function AdminDashboard() {
                         if (!found) return <td key={f.time} className="px-4 py-3"><span className="text-zinc-400">—</span></td>;
                         const key = slotToKey(String(r.doctor._id), found.time);
                         const cnt = slotBookedCount.get(key) || 0;
-                        const loadCls =
-                          cnt === 0 ? "bg-emerald-600 text-white"
-                            : cnt >= 2 ? "bg-red-600 text-white"
-                              : "bg-amber-500 text-white";
+                        const loadCls = cnt === 0 ? "bg-emerald-600 text-white" : "bg-red-600 text-white";
                         return (
                           <td key={f.time} className="px-4 py-3">
                             <RoomSlotToRoomBookingsLink
@@ -556,7 +599,7 @@ export default function AdminDashboard() {
                               className="inline-block align-middle max-w-full"
                             >
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-90 transition cursor-pointer ${loadCls}`}>
-                                {found.room}{cnt > 0 ? ` · ${cnt}/2` : ""}
+                                {found.room}{cnt > 0 ? ` · ${cnt}` : ""}
                               </span>
                             </RoomSlotToRoomBookingsLink>
                           </td>

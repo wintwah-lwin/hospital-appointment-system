@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPatch } from "../../api/client.js";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { isWeekendYmdSG } from "../../utils/clinicHours.js";
 
 const PATIENT_CATEGORIES = ["General", "Cardiology", "Neurology", "Orthopedics"];
 const TZ = "Asia/Singapore";
@@ -19,8 +20,7 @@ function formatSlotChoiceLine(s) {
     : "";
   if (s.legacy) return `${s.partLabel || "Legacy"} — ${timeStr}`;
   const band = s.slotLabel ? (SLOT_LABEL_PRETTY[s.slotLabel] || s.slotLabel) : "";
-  const part = s.partLabel || (s.slotPart === 1 ? "1st session" : "2nd session");
-  return `${band ? `${band} · ` : ""}${part} — consult ${timeStr}`;
+  return band ? `${band} — ${timeStr}` : `Consult ${timeStr}`;
 }
 
 function sgDateYmd(iso) {
@@ -96,7 +96,7 @@ export default function EditBooking() {
             anchorTime: curIso,
             slotPart: Number(curPart),
             startTime: new Date(appt.startTime).toISOString(),
-            partLabel: `Current booking (${anchorHH} · ${curPart === 1 ? "1st" : "2nd"})`,
+            partLabel: `Current booking (${anchorHH})`,
             slotLabel: anchorHH,
             doctorId: String(appt.doctorId),
             doctorName: appt.doctorNameSnapshot
@@ -134,15 +134,18 @@ export default function EditBooking() {
     return hoursUntil >= 24;
   }, [appt?.startTime]);
 
+  const bookingDateIsWeekend = isWeekendYmdSG(bookingDate);
+
   async function save(e) {
     e.preventDefault();
     setSaving(true);
     setErr("");
     try {
+      if (bookingDateIsWeekend) throw new Error("The clinic is closed on weekends. Please choose Monday–Friday.");
       if (!PATIENT_CATEGORIES.includes(category)) throw new Error("Invalid category");
       if (!doctorId) throw new Error("Pick a doctor");
       const sel = slotChoices.find(s => slotChoiceKey(s) === selectedSlotKey);
-      if (!sel) throw new Error("Choose an available session from the list");
+      if (!sel) throw new Error("Choose a time slot");
 
       const body = {
         category,
@@ -173,7 +176,7 @@ export default function EditBooking() {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Reschedule appointment</h1>
-          <p className="text-sm text-slate-500 mt-1">Pick a doctor, date, and session. Availability is checked when you save.</p>
+          <p className="text-sm text-slate-500 mt-1">Pick a doctor, date, and time. Availability is checked when you save.</p>
         </div>
         <Link to="/patient/bookings" className="text-sm font-medium text-[#0d9488] hover:underline shrink-0">← Back to bookings</Link>
       </div>
@@ -226,22 +229,26 @@ export default function EditBooking() {
               required
               className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent"
             />
+            {bookingDateIsWeekend && (
+              <p className="text-sm text-amber-800 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                The clinic is closed on weekends. Choose a weekday to reschedule.
+              </p>
+            )}
           </label>
 
           <label className="block">
-            <span className="block text-sm font-medium text-slate-700 mb-1">Session slot</span>
+            <span className="block text-sm font-medium text-slate-700 mb-1">Time slot</span>
             <select
               value={selectedSlotKey}
               onChange={(e) => setSelectedSlotKey(e.target.value)}
               required
               className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-[#0d9488] focus:border-transparent"
             >
-              <option value="">Select an available session</option>
+              <option value="">Select time</option>
               {slotChoices.map(s => (
                 <option key={slotChoiceKey(s)} value={slotChoiceKey(s)}>{formatSlotChoiceLine(s)}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-500 mt-1">Each time band has two sessions (1st and 2nd). Only open sessions are listed unless yours is kept.</p>
           </label>
 
           <label className="block">
@@ -250,7 +257,7 @@ export default function EditBooking() {
           </label>
 
           <div className="flex gap-3 pt-2">
-            <button type="submit" disabled={saving || !selectedSlotKey} className="px-6 py-2.5 rounded-lg bg-[#0d9488] text-white font-medium hover:bg-[#0f766e] disabled:opacity-50 disabled:cursor-not-allowed transition">
+            <button type="submit" disabled={saving || !selectedSlotKey || bookingDateIsWeekend} className="px-6 py-2.5 rounded-lg bg-[#0d9488] text-white font-medium hover:bg-[#0f766e] disabled:opacity-50 disabled:cursor-not-allowed transition">
               {saving ? "Saving…" : "Save changes"}
             </button>
             <Link to="/patient/bookings" className="px-6 py-2.5 rounded-lg border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition">

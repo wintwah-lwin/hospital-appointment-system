@@ -1,6 +1,9 @@
 import LoginEvent from "../models/LoginEvent.js";
 import SecurityAlert from "../models/SecurityAlert.js";
 
+/** Login audit tracks patient + admin only; staff rows are excluded. */
+const AUDIT_ROLE_FILTER = { role: { $ne: "staff" } };
+
 export const deleteLoginEvent = async (req, res) => {
   const { id } = req.params;
   const deleted = await LoginEvent.findByIdAndDelete(id);
@@ -11,11 +14,15 @@ export const deleteLoginEvent = async (req, res) => {
 export const listLoginEvents = async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
   const skip = parseInt(req.query.skip, 10) || 0;
-  const role = req.query.role?.trim();
+  const role = req.query.role?.trim().toLowerCase();
   const success = req.query.success;
   const identifier = req.query.identifier?.trim();
 
-  const q = {};
+  if (role === "staff") {
+    return res.json({ events: [], total: 0 });
+  }
+
+  const q = { ...AUDIT_ROLE_FILTER };
   if (role) q.role = role;
   if (success !== undefined) q.success = success === "true";
   if (identifier) q.identifier = new RegExp(identifier, "i");
@@ -33,7 +40,7 @@ export const listSecurityAlerts = async (req, res) => {
   const skip = parseInt(req.query.skip, 10) || 0;
   const severity = req.query.severity?.trim();
 
-  const q = {};
+  const q = { ...AUDIT_ROLE_FILTER };
   if (severity) q.severity = severity;
 
   const [alerts, total] = await Promise.all([
@@ -56,11 +63,11 @@ export const getSecuritySummary = async (req, res) => {
     alerts24h,
     alertsUnresolved
   ] = await Promise.all([
-    LoginEvent.countDocuments({ createdAt: { $gte: last24h } }),
-    LoginEvent.countDocuments({ success: false, createdAt: { $gte: last24h } }),
-    LoginEvent.distinct("identifier", { success: true, createdAt: { $gte: last24h } }).then((a) => a.length),
-    SecurityAlert.countDocuments({ createdAt: { $gte: last24h } }),
-    SecurityAlert.countDocuments({ createdAt: { $gte: last7d } })
+    LoginEvent.countDocuments({ ...AUDIT_ROLE_FILTER, createdAt: { $gte: last24h } }),
+    LoginEvent.countDocuments({ ...AUDIT_ROLE_FILTER, success: false, createdAt: { $gte: last24h } }),
+    LoginEvent.distinct("identifier", { ...AUDIT_ROLE_FILTER, success: true, createdAt: { $gte: last24h } }).then((a) => a.length),
+    SecurityAlert.countDocuments({ ...AUDIT_ROLE_FILTER, createdAt: { $gte: last24h } }),
+    SecurityAlert.countDocuments({ ...AUDIT_ROLE_FILTER, createdAt: { $gte: last7d } })
   ]);
 
   res.json({

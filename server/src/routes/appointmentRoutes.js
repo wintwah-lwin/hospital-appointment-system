@@ -35,6 +35,9 @@ router.delete("/clear", requireAuth, requireRole("admin"), clearAllAppointments)
 router.get("/by-room", requireAuth, requireRole("admin"), listAppointmentsByRoomAndDate);
 router.get("/archived/history", requireAuth, requireRole("admin"), listArchivedAppointments);
 
+// List all (must be before /:id so "GET /api/appointments" is not captured as an id)
+router.get("/", requireAuth, requireRole("staff", "admin"), listAllAppointments);
+
 // Shared (owner/admin/staff)
 router.get("/:id", requireAuth, getAppointmentById);
 router.patch("/:id", requireAuth, editAppointment);
@@ -52,8 +55,5 @@ router.patch("/:id/complete", requireAuth, requireRole("staff", "admin"), comple
 router.patch("/:id/no-show", requireAuth, requireRole("staff", "admin"), markNoShow);
 router.patch("/:id/status", requireAuth, requireRole("admin"), setStatusAdmin);
 router.delete("/:id", requireAuth, requireRole("admin"), completeAndDelete);
-
-// Admin/staff views
-router.get("/", requireAuth, requireRole("staff", "admin"), listAllAppointments);
 
 export default router;
