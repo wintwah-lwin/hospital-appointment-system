@@ -15,10 +15,9 @@ The application is a full-stack **hospital appointment & resource management** s
    - Database & API Integration  
    - Cloud Integration (e.g. MongoDB Atlas deployment)
 
-2. **Phyo Amie**  
+2. **Amie Phyo**  
    - Backend Development  
-
-   - UI/UX Design (Figma)  
+   - UI/UX Design
    - Data Management
 
 3. **Wint Wah Lwin**  
@@ -37,10 +36,10 @@ The application is a full-stack **hospital appointment & resource management** s
 ## Project goals
 
 - Book **consultation sessions** from a doctor timetable (time bands with **1st / 2nd** sessions)
-- **JWT**-based login for patients, staff, and admins
+- **JWT**-based login for patients and admins
 - **MongoDB** persistence (local or Atlas) for users, doctors, schedules, appointments, rooms (`beds`), notifications
 - Patients: browse availability, book, reschedule, see bookings  
-- Admin/staff: doctor schedules, booking load, appointments list & detail, security / login events, room bookings
+- Admin: doctor schedules, booking load, appointments list & detail, security / login events, room availability
 
 ---
 
@@ -51,7 +50,7 @@ The application is a full-stack **hospital appointment & resource management** s
 | **Frontend** | React 18 + Vite + React Router + Tailwind CSS |
 | **Backend** | Node.js + Express |
 | **Database** | MongoDB (Mongoose), local **or** MongoDB Atlas |
-| **Auth** | JWT (root `.env`: `JWT_SECRET`, optional admin/staff seed) |
+| **Auth** | JWT (root `.env`: `JWT_SECRET`, optional admin seed) |
 | **Version control** | Git + GitHub |
 
 ---
@@ -74,7 +73,7 @@ See the root README history in git for path tips if `cd` / `npm run dev` fails.
 
 | Path | Purpose |
 |------|---------|
-| `src/` | React app: patient, admin, staff, kiosk, auth |
+| `src/` | React app: patient, admin, kiosk, auth |
 | `server/` | Express API, Mongoose models, jobs |
 | `docs/` | Extra guides: run locally, backend overview, appointment statuses |
 | `.env` | Local secrets at repo root (not committed; see `.env.example`) |
@@ -83,22 +82,21 @@ See the root README history in git for path tips if `cd` / `npm run dev` fails.
 
 ---
 
-## Iteration 1 (Week 3 – Week 6)
+## Iteration 1 (Week 1 – Week 2)
 
 > Foundation: data model, schedules, and core booking.
 
-### Delivered features (example — adjust to your burndown)
+### Delivered features
 
 1. **Doctor & room model, working schedule slots** – High – *estimate / actual*  
 2. **Patient booking against timetable** – High  
 3. **Availability & capacity (two sessions per time band)** – High  
 4. **Admin doctor CRUD & schedule editor** – Medium  
 
-📝 Weekly GitHub updates and progress check-ins during practicals.
 
 ---
 
-## Iteration 2 (Week 7 – Week 10)
+## Iteration 2 (Week 3 – Week 4)
 
 > Auth hardening, admin operations, and polish.
 
@@ -117,13 +115,11 @@ See the root README history in git for path tips if `cd` / `npm run dev` fails.
 - Appointment status lifecycle ([docs/status-lifecycle.md](docs/status-lifecycle.md))  
 - Responsive UI for desktop and mobile  
 
-**Adjust estimates and “actual velocity”** to match your subject spreadsheet.
-
 ---
 
 ## Testing
 
-- Manual e2e: register, book, admin review, staff queue  
+- Manual e2e: register, book, admin review
 - Role-based access (patient vs admin)  
 - MongoDB local **and/or** Atlas connection  
 - Responsive checks on common breakpoints  
@@ -135,10 +131,9 @@ See the root README history in git for path tips if `cd` / `npm run dev` fails.
 - [Run locally](./docs/run-locally.md)  
 - [Server / API notes](./docs/server.md)  
 - [Appointment statuses](./docs/status-lifecycle.md)  
-- *(Add: Iteration 1 / 2 markdown, Figma link, demo video — when ready)*  
 
 ---
 
 ## Status
 
-Project in active development / submission — update this line when your milestone is locked.
+Project in active development
