@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export default function Logo({ className = "h-11 w-11", showText = true, asLink = true }) {
   const img = (
     <img
-      src="/intellicare-logo.png"
+      src="/intellicare-logo.svg"
       alt="IntelliCare"
       className={`${className} object-contain`}
     />

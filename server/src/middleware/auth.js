@@ -34,17 +34,34 @@ export function requireAuth(req, res, next) {
     .catch(next);
 }
 
-// Optional auth: attach req.user when token exists, but don't block anonymous requests.
+// Optional auth: attach req.user when token exists (role from DB, same as requireAuth).
 export function attachAuth(req, _res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return next();
+
+  let payload;
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    // Ignore invalid token for optional auth paths.
+    return next();
   }
-  next();
+
+  const userId = payload.id || payload.sub;
+  if (!userId) return next();
+
+  User.findById(userId)
+    .select("role isBanned")
+    .lean()
+    .then((user) => {
+      if (!user || user.isBanned) {
+        req.user = null;
+        return next();
+      }
+      req.user = { ...payload, id: userId, role: user.role };
+      next();
+    })
+    .catch(() => next());
 }
 
 export function requireRole(...roles) {

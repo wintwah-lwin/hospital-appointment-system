@@ -2,7 +2,7 @@ import DoctorSchedule, { FIXED_SLOTS } from "../models/DoctorSchedule.js";
 import Appointment from "../models/Appointment.js";
 import Doctor from "../models/Doctor.js";
 import { activeAppointmentWhere } from "./appointmentQueries.js";
-import { BLOCKING_STATUSES, sessionPartWindow, PART1_WAIT_MIN, CONSULT_MIN } from "./availability.js";
+import { BLOCKING_STATUSES, sessionPartWindow, PART1_WAIT_MIN, CONSULT_MIN, REST_BETWEEN_MIN } from "./availability.js";
 
 const FIXED_TIMES = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 
@@ -153,19 +153,23 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
     for (const s of slots) {
       const anchor = slotToDate(dateStr, s.time);
       const partsOut = [];
-      const part = 1;
-      const { start, end } = sessionPartWindow(anchor, part);
-      if (!includePastSlots && end <= now) {
-        continue;
+      for (const part of [1, 2]) {
+        const { start, end } = sessionPartWindow(anchor, part);
+        if (!includePastSlots && end <= now) continue;
+        const booked = segmentBooked(start, end, doc._id);
+        const label =
+          part === 1
+            ? `${PART1_WAIT_MIN}m wait + ${CONSULT_MIN}m consult (1st)`
+            : `${REST_BETWEEN_MIN}m break + ${CONSULT_MIN}m consult (2nd)`;
+        partsOut.push({
+          part,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          available: !booked,
+          label
+        });
       }
-      const booked = segmentBooked(start, end, doc._id);
-      partsOut.push({
-        part,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        available: !booked,
-        label: `${PART1_WAIT_MIN}m wait + ${CONSULT_MIN}m consult`
-      });
+      if (!partsOut.length) continue;
       results.push({
         doctorId: String(doc._id),
         doctorName: doc.name,
@@ -173,7 +177,7 @@ export async function getAvailableSlotsForDate(dateStr, doctorId = null, categor
         slotLabel: s.time,
         slotRoom: s.room,
         anchorTime: anchor.toISOString(),
-        capacity: 1,
+        capacity: 2,
         parts: partsOut
       });
     }

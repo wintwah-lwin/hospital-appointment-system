@@ -7,6 +7,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  // Vite reads .env from here (not repo root)
-  envDir: path.resolve(__dirname, "env/frontend"),
+  // Same directory as root .env / .env.example (see README, server loadEnv)
+  envDir: __dirname,
 });

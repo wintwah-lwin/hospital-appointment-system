@@ -1,36 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiGet } from "../../api/client.js";
+import { anchorSlotLabelForAppointment } from "./appointmentUtils.js";
 
 const SLOT_ORDER = ["09:00", "11:00", "14:00", "16:00", "17:00"];
 const SLOT_LABEL = { "09:00": "9am", "11:00": "11am", "14:00": "2pm", "16:00": "4pm", "17:00": "5pm" };
-const CAPACITY_FALLBACK = 1;
+const CAPACITY_FALLBACK = 2;
 const TZ = "Asia/Singapore";
-const PART1_WAIT_MIN = 5;
-const CONSULT_MIN = 25;
-
-function addMinutes(d, m) {
-  return new Date(d.getTime() + m * 60 * 1000);
-}
-
-function slotToDateAnchor(dateStr, hhmm) {
-  const [h, mi] = hhmm.split(":").map(Number);
-  return new Date(`${dateStr}T${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:00+08:00`);
-}
-
-function anchorSlotLabelForAppointment(a, dateYmd) {
-  if (a.slotAnchorTime) {
-    return new Date(a.slotAnchorTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-  }
-  const t = new Date(a.startTime);
-  for (const ft of SLOT_ORDER) {
-    const anchor = slotToDateAnchor(dateYmd, ft);
-    const p1s = addMinutes(anchor, PART1_WAIT_MIN);
-    const p1e = addMinutes(p1s, CONSULT_MIN);
-    if (t >= p1s && t < p1e) return ft;
-  }
-  return new Date(a.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
-}
 
 function toDatePart(dateLike) {
   const d = new Date(dateLike);

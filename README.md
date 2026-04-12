@@ -73,10 +73,11 @@ See the root README history in git for path tips if `cd` / `npm run dev` fails.
 
 | Path | Purpose |
 |------|---------|
-| `src/` | React app: patient, admin, kiosk, auth |
+| `public/` | Static assets served at site root (e.g. favicon / `intellicare-logo.svg`) |
+| `src/` | React app: patient, admin, staff, kiosk, auth |
 | `server/` | Express API, Mongoose models, jobs |
 | `docs/` | Extra guides: run locally, backend overview, appointment statuses |
-| `.env` | Local secrets at repo root (not committed; see `.env.example`) |
+| `.env` | Local secrets at repo root (not committed; see `.env.example`); Vite reads `VITE_*` from here too |
 
 **Roles:** Admin `/admin` · Staff `/staff` · Patient `/patient` · Kiosk `/kiosk`
 

@@ -1,15 +1,31 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { apiGet, apiPost } from "../api/client.js";
+import { useLocation } from "react-router-dom";
+import {
+  apiGet,
+  apiPost,
+  getActiveAuthToken,
+  persistAuthTokenForRole,
+  clearActiveAuthTokens
+} from "../api/client.js";
 
 // login state for whole app
 const AuthCtx = createContext(null);
 
+/** Don’t call /me on marketing/auth/kiosk pages (avoids mixing last-used ic_token with the wrong portal). */
+const SKIP_SESSION_PATH = /^\/($|login|forgot-password|recover-password|kiosk)/;
+
 export function AuthProvider({ children }) {
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function refreshMe() {
-    const token = localStorage.getItem("ic_token");
+    if (SKIP_SESSION_PATH.test(location.pathname)) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    const token = getActiveAuthToken();
     if (!token) {
       setUser(null);
       setLoading(false);
@@ -19,7 +35,7 @@ export function AuthProvider({ children }) {
       const data = await apiGet("/api/auth/me");
       setUser(data.user || null);
     } catch {
-      localStorage.removeItem("ic_token");
+      clearActiveAuthTokens();
       setUser(null);
     } finally {
       setLoading(false);
@@ -27,32 +43,32 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    refreshMe();
-  }, []);
+    void refreshMe();
+  }, [location.pathname]);
 
   async function login(credentials) {
     const data = await apiPost("/api/auth/login", credentials);
-    localStorage.setItem("ic_token", data.token);
+    persistAuthTokenForRole(data.user?.role, data.token);
     setUser(data.user);
     return data.user;
   }
 
   async function registerPatient(body) {
     const data = await apiPost("/api/auth/register", body);
-    localStorage.setItem("ic_token", data.token);
+    persistAuthTokenForRole(data.user?.role, data.token);
     setUser(data.user);
     return data.user;
   }
 
   async function recoverWithToken(token) {
     const data = await apiPost("/api/auth/recover-session", { token });
-    localStorage.setItem("ic_token", data.token);
+    persistAuthTokenForRole(data.user?.role, data.token);
     setUser(data.user);
     return data.user;
   }
 
   function logout() {
-    localStorage.removeItem("ic_token");
+    clearActiveAuthTokens();
     setUser(null);
   }
 

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 
-const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+import { API_BASE } from "../../api/client.js";
+
+const BASE = API_BASE;
 
 async function lookup(email, appointmentId) {
   let res;

@@ -15,7 +15,7 @@ export default function PatientBooking() {
   const [category, setCategory] = useState("All doctors");
   const [bookingDate, setBookingDate] = useState(() => nextWeekdayYmdSG());
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [referralType, setReferralType] = useState("");
+  const [referralConfirmed, setReferralConfirmed] = useState(false);
   const [notes, setNotes] = useState("");
 
   const [created, setCreated] = useState(null);
@@ -72,7 +72,7 @@ export default function PatientBooking() {
   }, [category, bookingDate]);
 
   useEffect(() => {
-    setReferralType("");
+    setReferralConfirmed(false);
   }, [category, selectedSlot]);
 
   const effectiveCategory = useMemo(() => {
@@ -89,8 +89,8 @@ export default function PatientBooking() {
       setError("The clinic is closed on weekends. Please choose Monday–Friday.");
       return;
     }
-    if (referralRequired && !referralType) {
-      setError("Please select your referral type");
+    if (referralRequired && !referralConfirmed) {
+      setError("Please tick the box to confirm you have a referral");
       return;
     }
     if (!selectedSlot) {
@@ -116,12 +116,13 @@ export default function PatientBooking() {
         slotAnchorTime: selectedSlot.anchorTime,
         slotPart: selectedSlot.slotPart,
         queueCategory: "New",
-        hasReferral: NEEDS_REFERRAL.includes(cat) ? !!referralType : undefined,
+        hasReferral: NEEDS_REFERRAL.includes(cat) ? referralConfirmed : undefined,
         notes
       };
       const res = await apiPost("/api/appointments", payload);
       setCreated(res);
       setNotes("");
+      setReferralConfirmed(false);
       setSelectedSlot(null);
       loadTimetable();
     } catch (e) {
@@ -149,7 +150,8 @@ export default function PatientBooking() {
   const confirmSummary = selectedSlot && doc ? {
     doctor: doc.name,
     date: new Date(selectedSlot.startTime).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", year: "numeric" }),
-    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })
+    time: new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" }),
+    session: selectedSlot.slotPart === 2 ? "2nd" : "1st"
   } : null;
 
   return (
@@ -178,6 +180,10 @@ export default function PatientBooking() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Time</span>
                   <span className="font-medium text-slate-900">{confirmSummary.time}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Session</span>
+                  <span className="font-medium text-slate-900">{confirmSummary.session}</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -282,6 +288,7 @@ export default function PatientBooking() {
             title="Weekdays only (Mon–Fri, Singapore)"
           />
         </div>
+        <p className="text-xs text-slate-500 mb-2">Each time band has two bookable sessions: 1st and 2nd (separate consultation windows).</p>
         <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
           <div className="grid grid-cols-[minmax(100px,1fr)_repeat(5,minmax(88px,1fr))] text-sm min-w-[520px]">
             <div className="px-4 py-3 bg-slate-50 font-medium text-slate-600">Doctor</div>
@@ -296,36 +303,39 @@ export default function PatientBooking() {
                   return (
                     <div key={f.value} className="px-1.5 py-2 border-t border-slate-100">
                       {s?.parts?.length ? (
-                        (() => {
-                          const p = s.parts[0];
-                          const pick = {
-                            doctorId: s.doctorId,
-                            doctorName: s.doctorName,
-                            anchorTime: s.anchorTime,
-                            slotPart: p.part,
-                            startTime: p.startTime,
-                            slotLabel: s.slotLabel
-                          };
-                          const isSelected =
-                            selectedSlot
-                            && selectedSlot.doctorId === pick.doctorId
-                            && selectedSlot.anchorTime === pick.anchorTime
-                            && selectedSlot.slotPart === pick.slotPart;
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!p.available) return;
-                                setSelectedSlot(pick);
-                              }}
-                              disabled={!p.available}
-                              className={`w-full py-1.5 rounded text-[11px] font-semibold leading-tight ${p.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
-                              title={p.available ? p.label : "Booked"}
-                            >
-                              Book
-                            </button>
-                          );
-                        })()
+                        <div className="flex flex-col gap-1">
+                          {s.parts.map((p) => {
+                            const pick = {
+                              doctorId: s.doctorId,
+                              doctorName: s.doctorName,
+                              anchorTime: s.anchorTime,
+                              slotPart: p.part,
+                              startTime: p.startTime,
+                              slotLabel: s.slotLabel
+                            };
+                            const isSelected =
+                              selectedSlot
+                              && selectedSlot.doctorId === pick.doctorId
+                              && selectedSlot.anchorTime === pick.anchorTime
+                              && selectedSlot.slotPart === pick.slotPart;
+                            const sessionLabel = p.part === 2 ? "2nd" : "1st";
+                            return (
+                              <button
+                                key={p.part}
+                                type="button"
+                                onClick={() => {
+                                  if (!p.available) return;
+                                  setSelectedSlot(pick);
+                                }}
+                                disabled={!p.available}
+                                className={`w-full py-1 rounded text-[10px] font-semibold leading-tight ${p.available ? "bg-primary-600 hover:bg-primary-500 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"} ${isSelected ? "ring-2 ring-primary-400 ring-offset-1" : ""}`}
+                                title={p.available ? p.label : "Booked"}
+                              >
+                                {sessionLabel}
+                              </button>
+                            );
+                          })}
+                        </div>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
@@ -342,34 +352,16 @@ export default function PatientBooking() {
       <section>
         <form onSubmit={handleConfirmClick} className="space-y-4 max-w-2xl">
           {referralRequired && (
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">Referral</span>
-              <select
-                value={referralType}
-                onChange={(e) => setReferralType(e.target.value)}
-                className="w-full max-w-md px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
-              >
-                <option value="">Select referral type</option>
-                <option value="gp">GP / family physician referral</option>
-                <option value="specialist">Referral from another specialist</option>
-              </select>
-              <p className="text-xs text-slate-500 mt-1">A referral is required for this specialty.</p>
+            <label className="flex items-start gap-3 cursor-pointer max-w-md">
+              <input
+                type="checkbox"
+                checked={referralConfirmed}
+                onChange={(e) => setReferralConfirmed(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 accent-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-slate-800">I have a referral for this specialty</span>
             </label>
           )}
-          <div>
-            <span className="block text-xs font-medium text-slate-600 mb-1">Selection</span>
-            {selectedSlot ? (
-              <span className="inline-block px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium">
-                {doctors.find(d => String(d._id) === String(selectedSlot.doctorId))?.name || selectedSlot.doctorName}
-                {" · "}
-                {FIXED.find(x => x.value === selectedSlot.slotLabel)?.label || selectedSlot.slotLabel}
-                {" · "}
-                {new Date(selectedSlot.startTime).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })}
-              </span>
-            ) : (
-              <span className="text-slate-500 text-sm">—</span>
-            )}
-          </div>
           <label>
             <span className="block text-xs font-medium text-slate-600 mb-1">Notes (optional)</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />

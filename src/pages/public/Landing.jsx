@@ -111,7 +111,7 @@ export default function Landing() {
                 <div className="w-48 h-48 rounded-full bg-[#0d9488]/5" />
               </div>
               <div className="relative text-center p-8 flex flex-col items-center justify-center z-10">
-                <img src="/intellicare-logo.png" alt="IntelliCare" className="h-32 w-32 object-contain opacity-80" />
+                <img src="/intellicare-logo.svg" alt="IntelliCare" className="h-32 w-32 object-contain opacity-80" />
                 <p className="text-[#94a3b8] text-sm mt-4">Healthcare simplified</p>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function Landing() {
       <section className="max-w-6xl mx-auto px-6 py-16">
         <div className="flex flex-wrap justify-between gap-8 items-center border-t border-[#e2e8f0] pt-12">
           <div className="flex items-center gap-2">
-            <img src="/intellicare-logo.png" alt="IntelliCare" className="h-6 w-6 object-contain" />
+            <img src="/intellicare-logo.svg" alt="IntelliCare" className="h-6 w-6 object-contain" />
             <span className="font-semibold text-[#0f172a]">IntelliCare</span>
             <span className="text-[#94a3b8] mx-2">·</span>
             <span className="text-[#64748b] text-sm">Resource Allocation</span>

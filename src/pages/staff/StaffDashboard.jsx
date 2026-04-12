@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPatch } from "../../api/client.js";
+import { apiGet, apiPost, apiPatch, API_BASE } from "../../api/client.js";
 import { useAuth } from "../../auth/AuthContext.jsx";
 
 const STATUS_LIFECYCLE = "Booked → Checked-In → Waiting → In Consultation → Completed";
@@ -57,7 +57,7 @@ export default function StaffDashboard() {
       return;
     }
     try {
-      const res = await fetch((import.meta.env.VITE_API_BASE_URL || "http://localhost:5001") + "/api/appointments/lookup", {
+      const res = await fetch(`${API_BASE}/api/appointments/lookup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: lookupEmail.trim().toLowerCase() })

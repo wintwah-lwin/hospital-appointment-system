@@ -590,7 +590,9 @@ export default function AdminDashboard() {
                         if (!found) return <td key={f.time} className="px-4 py-3"><span className="text-zinc-400">—</span></td>;
                         const key = slotToKey(String(r.doctor._id), found.time);
                         const cnt = slotBookedCount.get(key) || 0;
-                        const loadCls = cnt === 0 ? "bg-emerald-600 text-white" : "bg-red-600 text-white";
+                        const cap = 2;
+                        const loadCls =
+                          cnt >= cap ? "bg-red-600 text-white" : cnt >= 1 ? "bg-amber-500 text-white" : "bg-emerald-600 text-white";
                         return (
                           <td key={f.time} className="px-4 py-3">
                             <RoomSlotToRoomBookingsLink
@@ -599,7 +601,7 @@ export default function AdminDashboard() {
                               className="inline-block align-middle max-w-full"
                             >
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-90 transition cursor-pointer ${loadCls}`}>
-                                {found.room}{cnt > 0 ? ` · ${cnt}` : ""}
+                                {found.room}{cnt > 0 ? ` · ${cnt}/${cap}` : ""}
                               </span>
                             </RoomSlotToRoomBookingsLink>
                           </td>
